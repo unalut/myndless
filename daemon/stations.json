@@ -2,5 +2,6 @@
   {"id": "somafm-groovesalad", "name": "SomaFM: Groove Salad", "url": "https://ice1.somafm.com/groovesalad-128-mp3"},
   {"id": "somafm-dronezone", "name": "SomaFM: Drone Zone", "url": "https://ice1.somafm.com/dronezone-128-mp3"},
   {"id": "radio-paradise", "name": "Radio Paradise (main mix)", "url": "https://stream.radioparadise.com/mp3-192"},
-  {"id": "bbc-radio1", "name": "BBC Radio 1", "url": "http://stream.live.vc.bbcmedia.co.uk/bbc_radio_one"}
+  {"id": "bbc-radio1", "name": "BBC Radio 1", "url": "http://stream.live.vc.bbcmedia.co.uk/bbc_radio_one"},
+  {"id": "metropol-fm", "name": "Metropol FM", "url": "http://streams.metropolfm.de/MetropolFM/stream.aac"}
 ]
