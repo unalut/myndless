@@ -39,7 +39,9 @@ def create_app(orch: Orchestrator) -> Flask:
 
     @app.get("/api/radio/stations")
     def list_stations():
-        return jsonify([{"id": s.id, "name": s.name} for s in orch.radio.list_stations()])
+        return jsonify(
+            [{"id": s.id, "name": s.name, "favicon": s.favicon} for s in orch.radio.list_stations()]
+        )
 
     @app.get("/api/radio/search")
     def search_stations():
@@ -53,8 +55,10 @@ def create_app(orch: Orchestrator) -> Flask:
         url = (data.get("url") or "").strip()
         if not name or not url:
             return jsonify({"error": "expected JSON body {'name': ..., 'url': ...}"}), 400
-        station = orch.add_radio_station(name, url, station_id=data.get("id") or None)
-        return jsonify({"id": station.id, "name": station.name}), 201
+        station = orch.add_radio_station(
+            name, url, station_id=data.get("id") or None, favicon=(data.get("favicon") or "").strip()
+        )
+        return jsonify({"id": station.id, "name": station.name, "favicon": station.favicon}), 201
 
     @app.delete("/api/radio/stations/<station_id>")
     def remove_station(station_id: str):

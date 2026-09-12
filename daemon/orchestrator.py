@@ -113,10 +113,12 @@ class Orchestrator:
     def search_radio_stations(self, query: str) -> list[dict]:
         return radio_browser.search_stations(query)
 
-    def add_radio_station(self, name: str, url: str, station_id: Optional[str] = None) -> Station:
+    def add_radio_station(
+        self, name: str, url: str, station_id: Optional[str] = None, favicon: str = ""
+    ) -> Station:
         """Add a station (from a Radio Browser search result, or typed in by
         hand) and persist it to disk so it survives a restart."""
-        station = Station(id=station_id or self._unique_station_id(name), name=name, url=url)
+        station = Station(id=station_id or self._unique_station_id(name), name=name, url=url, favicon=favicon)
         self.radio.add_station(station)
         try:
             save_stations(self.config.radio_stations_file, self.radio.list_stations())

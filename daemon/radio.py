@@ -27,6 +27,7 @@ class Station:
     id: str
     name: str
     url: str
+    favicon: str = ""
 
 
 def load_stations(path: str) -> list[Station]:
@@ -35,14 +36,17 @@ def load_stations(path: str) -> list[Station]:
     except FileNotFoundError:
         log.warning("stations file %s not found - no radio stations available", path)
         return []
-    return [Station(id=item["id"], name=item["name"], url=item["url"]) for item in raw]
+    return [
+        Station(id=item["id"], name=item["name"], url=item["url"], favicon=item.get("favicon", ""))
+        for item in raw
+    ]
 
 
 def save_stations(path: str, stations: list[Station]) -> None:
     """Persist the station list back to disk (same shape load_stations reads),
     so stations added at runtime (e.g. via the web UI's Radio Browser search)
     survive a restart."""
-    data = [{"id": s.id, "name": s.name, "url": s.url} for s in stations]
+    data = [{"id": s.id, "name": s.name, "url": s.url, "favicon": s.favicon} for s in stations]
     Path(path).write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
 
 
