@@ -43,6 +43,12 @@ class AudioBackend:
             log.exception("failed to list ALSA mixer controls")
             return ""
 
+        if result.returncode != 0:
+            log.warning(
+                "amixer -c %s scontrols exited %d - stdout=%r stderr=%r",
+                self._card, result.returncode, result.stdout, result.stderr,
+            )
+
         available = re.findall(r"'([^']+)'", result.stdout)
         for candidate in _COMMON_MIXER_NAMES:
             if candidate in available:
