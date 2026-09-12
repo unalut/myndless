@@ -27,8 +27,12 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 INSTALL_DIR="/opt/myndless"
 
 echo "==> Enabling the hardware UART for Actionslink"
-sudo raspi-config nonint do_serial_hw 1   # enable UART hardware
-sudo raspi-config nonint do_serial_cons 0 # disable login shell on serial
+# raspi-config's nonint booleans are inverted from what you'd guess (0 = yes/enable,
+# 1 = no/disable) - verified against a real Pi Zero 2 W: do_serial_hw 0 is the one
+# that actually produces enable_uart=1, and do_serial_cons 1 is the one that
+# actually strips console=serial0,... from cmdline.txt.
+sudo raspi-config nonint do_serial_hw 0   # enable UART hardware
+sudo raspi-config nonint do_serial_cons 1 # disable login shell on serial
 if ! grep -q "^dtoverlay=disable-bt" /boot/firmware/config.txt 2>/dev/null && \
    ! grep -q "^dtoverlay=disable-bt" /boot/config.txt 2>/dev/null; then
     CONFIG_TXT="/boot/firmware/config.txt"
