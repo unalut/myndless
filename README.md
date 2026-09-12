@@ -25,12 +25,13 @@ Spotify Connect + web UI stack on top.
 - [x] **Verified against real hardware** (a real MYND + MYNDberry board):
       the Actionslink UART link (framing, handshake, live button/event
       traffic), the I2S audio path (`dtoverlay=hifiberry-dac`, audible
-      output), and the full daemon + web UI running as a systemd service
+      output), the full daemon + web UI running as a systemd service
       (orchestrator handshake with the MCU, station playback, software
-      volume control all confirmed working end-to-end) — see "First run on
-      real hardware" for the exact steps and what's still open (mainly:
-      `librespot` isn't installed on the test unit yet, so Spotify Connect
-      itself is untested, though the daemon correctly runs without it).
+      volume control all confirmed working end-to-end), and now **Spotify
+      Connect itself**: `librespot` installed via the Raspotify project's
+      prebuilt binary (see `scripts/setup_pi.sh`), phone shows "myndless" as
+      a Connect target, audio plays through the MYND — see "First run on
+      real hardware" for the exact steps and what's still open.
 
 ## Why not moOde?
 
@@ -293,9 +294,9 @@ software volume control) all work as described below.
   code/stdout/stderr on failure - see `daemon/audio.py`).
 
 Still open:
-- `librespot` isn't installed on the test unit - Spotify Connect itself
-  (as opposed to "the daemon runs fine without it") hasn't been exercised
-  on real hardware yet.
+- Spotify Connect play/pause/skip from the physical remote/buttons: vanilla
+  `librespot` has no local control API for that (see `daemon/spotify.py`),
+  only phone-initiated playback has been exercised.
 - Whether `set_audio_source`/analog-source handling needs real behavior
   (right now it's acked as a no-op - see the docstring in
   `daemon/orchestrator.py`).

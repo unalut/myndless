@@ -97,13 +97,21 @@ if command -v librespot >/dev/null 2>&1; then
     echo "    found: $(command -v librespot)"
 else
     cat <<'EOF'
-    Not found. librespot isn't packaged consistently enough across Pi OS
-    versions/architectures to install here automatically. Pick one:
+    Not found. Upstream librespot-org/librespot no longer publishes prebuilt
+    binaries (releases are source-only as of v0.8.0), and there's no Debian/
+    Raspberry Pi OS package for it either. Building from source with Rust on
+    a Pi Zero 2 W (512MB RAM) is impractically slow. Easiest fix: grab a
+    prebuilt binary from the Raspotify project (it packages stock librespot
+    for armhf/arm64), then disable Raspotify's *own* systemd service so it
+    doesn't also try to run librespot - myndless manages the process itself:
 
-      - Prebuilt binary: https://github.com/librespot-org/librespot/releases
-        (grab the aarch64-unknown-linux-gnu or armv7 build matching your OS,
-        drop it somewhere on PATH, e.g. /usr/local/bin/librespot)
-      - Build from source (needs Rust): https://github.com/librespot-org/librespot#compiling
+      curl -sL https://dtcooper.github.io/raspotify/install.sh | sh
+      sudo systemctl stop raspotify
+      sudo systemctl disable raspotify
+      sudo ln -sf "$(dpkg -L raspotify | grep bin/librespot)" /usr/local/bin/librespot
+
+    Alternative: build from source (needs Rust, slow on a Zero 2 W):
+    https://github.com/librespot-org/librespot#compiling
 
     Re-run this script (or just start the systemd service) once it's on PATH.
 EOF
