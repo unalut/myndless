@@ -89,7 +89,9 @@
     border-radius: 10px;
     border: 1px solid var(--border);
   }
-  .station .meta { min-width: 0; }
+  .station .meta { min-width: 0; display: flex; align-items: center; gap: 10px; }
+  .station .meta .favicon { width: 24px; height: 24px; border-radius: 6px; object-fit: cover; flex-shrink: 0; background: var(--border); }
+  .station .meta .text { min-width: 0; }
   .station .meta .name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .station .meta .detail { display: block; font-size: 12px; color: var(--muted); }
   .station-actions { display: flex; gap: 6px; flex-shrink: 0; }
@@ -191,6 +193,17 @@ async function refreshStatus() {
   });
 }
 
+function faviconEl(url) {
+  const img = document.createElement('img');
+  img.className = 'favicon';
+  img.alt = '';
+  img.loading = 'lazy';
+  img.referrerPolicy = 'no-referrer';
+  img.src = url || "{{ url_for('static', filename='logo.svg') }}";
+  img.onerror = () => { img.onerror = null; img.src = "{{ url_for('static', filename='logo.svg') }}"; };
+  return img;
+}
+
 async function loadStations() {
   const stations = await api('/api/radio/stations');
   const list = document.getElementById('stationList');
@@ -199,7 +212,15 @@ async function loadStations() {
     const row = document.createElement('div');
     row.className = 'station';
     row.dataset.id = station.id;
-    row.innerHTML = `<span>${station.name}</span>`;
+
+    const meta = document.createElement('div');
+    meta.className = 'meta';
+    meta.appendChild(faviconEl(station.favicon));
+    const name = document.createElement('span');
+    name.className = 'name';
+    name.textContent = station.name;
+    meta.appendChild(name);
+    row.appendChild(meta);
 
     const actions = document.createElement('div');
     actions.className = 'station-actions';
@@ -273,8 +294,19 @@ async function searchStations() {
     row.className = 'station';
     const meta = document.createElement('div');
     meta.className = 'meta';
+    meta.appendChild(faviconEl(result.favicon));
+    const text = document.createElement('div');
+    text.className = 'text';
+    const name = document.createElement('span');
+    name.className = 'name';
+    name.textContent = result.name;
+    text.appendChild(name);
     const detail = [result.country, result.bitrate ? `${result.bitrate}kbps` : ''].filter(Boolean).join(' · ');
-    meta.innerHTML = `<span class="name">${result.name}</span><span class="detail">${detail}</span>`;
+    const detailEl = document.createElement('span');
+    detailEl.className = 'detail';
+    detailEl.textContent = detail;
+    text.appendChild(detailEl);
+    meta.appendChild(text);
     row.appendChild(meta);
 
     const addBtn = document.createElement('button');
@@ -298,6 +330,7 @@ async function addStation(result, buttonEl) {
         id: result.stationuuid ? `rb-${result.stationuuid}` : undefined,
         name: result.name,
         url: result.url,
+        favicon: result.favicon,
       }),
     });
     buttonEl.textContent = 'Added ✓';
