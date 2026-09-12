@@ -108,6 +108,39 @@ def test_add_station_makes_it_immediately_playable():
     assert player.current_station.id == "new-one"
 
 
+def test_remove_station_drops_it_from_the_list():
+    player = RadioPlayer(STATIONS, spawner=FakeSpawner())
+    assert player.remove_station("a") is True
+    assert "a" not in [s.id for s in player.list_stations()]
+
+
+def test_remove_unknown_station_returns_false():
+    player = RadioPlayer(STATIONS, spawner=FakeSpawner())
+    assert player.remove_station("nope") is False
+    assert len(player.list_stations()) == len(STATIONS)
+
+
+def test_remove_currently_playing_station_stops_it():
+    spawner = FakeSpawner()
+    player = RadioPlayer(STATIONS, socket_path="/tmp/test-mpv-remove.sock", spawner=spawner)
+    player.play("a")
+    assert player.is_playing()
+
+    assert player.remove_station("a") is True
+    assert not player.is_playing()
+    assert spawner.spawned[0].terminated
+
+
+def test_remove_other_station_does_not_stop_playback():
+    spawner = FakeSpawner()
+    player = RadioPlayer(STATIONS, socket_path="/tmp/test-mpv-remove2.sock", spawner=spawner)
+    player.play("a")
+
+    assert player.remove_station("b") is True
+    assert player.is_playing()
+    assert player.current_station.id == "a"
+
+
 def test_save_and_reload_stations_round_trips(tmp_path=None):
     import tempfile
 

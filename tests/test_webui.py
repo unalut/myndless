@@ -157,6 +157,21 @@ def test_add_station_endpoint_rejects_missing_fields():
     assert resp.status_code == 400
 
 
+def test_remove_station_endpoint():
+    client, orch = make_client()
+    resp = client.delete("/api/radio/stations/a")
+    assert resp.status_code == 204
+
+    stations = client.get("/api/radio/stations").get_json()
+    assert not any(s["id"] == "a" for s in stations)
+
+
+def test_remove_station_endpoint_unknown_id_returns_404():
+    client, orch = make_client()
+    resp = client.delete("/api/radio/stations/does-not-exist")
+    assert resp.status_code == 404
+
+
 if __name__ == "__main__":
     import inspect
 

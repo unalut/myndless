@@ -124,6 +124,20 @@ class Orchestrator:
             log.exception("failed to persist stations to %s - station added for this run only", self.config.radio_stations_file)
         return station
 
+    def remove_radio_station(self, station_id: str) -> bool:
+        removed = self.radio.remove_station(station_id)
+        if not removed:
+            return False
+        if self.active_source == "radio" and not self.radio.is_playing():
+            # remove_station() will have stopped playback if it was the
+            # active one - reflect that in our own source-tracking too.
+            self._set_active_source(None)
+        try:
+            save_stations(self.config.radio_stations_file, self.radio.list_stations())
+        except OSError:
+            log.exception("failed to persist stations to %s after removing %s", self.config.radio_stations_file, station_id)
+        return True
+
     def _unique_station_id(self, name: str) -> str:
         base = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "station"
         existing = {s.id for s in self.radio.list_stations()}

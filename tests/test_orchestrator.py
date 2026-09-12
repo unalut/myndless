@@ -63,6 +63,14 @@ class FakeRadio:
     def add_station(self, station):
         self._stations[station.id] = station
 
+    def remove_station(self, station_id):
+        if station_id not in self._stations:
+            return False
+        if self.playing_station == station_id:
+            self.stop()
+        del self._stations[station_id]
+        return True
+
     def play(self, station_id):
         station = self._stations[station_id]
         self.playing_station = station_id
@@ -435,6 +443,34 @@ def test_add_radio_station_dedupes_generated_ids(tmp_path=None):
         second = orch.add_radio_station("Jazz FM", "http://example.com/b")
         assert first.id != second.id
         assert second.id == "jazz-fm-2"
+
+
+def test_remove_radio_station_persists_and_stops_if_playing(tmp_path=None):
+    import tempfile
+
+    from daemon.radio import load_stations
+
+    with tempfile.TemporaryDirectory() as d:
+        stations_path = f"{d}/stations.json"
+        config = Config(radio_stations_file=stations_path)
+        orch, audio, radio, spotify = make_inert_orchestrator(config)
+
+        orch.add_radio_station("Jazz FM", "http://example.com/a", station_id="jazz-fm")
+        orch.start_radio("jazz-fm")
+        assert orch.active_source == "radio"
+        assert radio.playing_station == "jazz-fm"
+
+        removed = orch.remove_radio_station("jazz-fm")
+        assert removed is True
+        assert radio.playing_station is None
+        assert orch.active_source is None
+        assert not any(s.id == "jazz-fm" for s in radio.list_stations())
+        assert not any(s.id == "jazz-fm" for s in load_stations(stations_path))
+
+
+def test_remove_radio_station_unknown_id_returns_false():
+    orch, *_ = make_inert_orchestrator()
+    assert orch.remove_radio_station("does-not-exist") is False
 
 
 if __name__ == "__main__":

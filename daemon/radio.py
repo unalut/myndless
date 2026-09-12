@@ -69,6 +69,16 @@ class RadioPlayer:
     def add_station(self, station: Station) -> None:
         self._stations[station.id] = station
 
+    def remove_station(self, station_id: str) -> bool:
+        """Remove a station. Returns True if it existed. Stops playback
+        first if it's the one currently playing."""
+        if station_id not in self._stations:
+            return False
+        if self._current is not None and self._current.id == station_id:
+            self.stop()
+        del self._stations[station_id]
+        return True
+
     @property
     def current_station(self) -> Optional[Station]:
         return self._current if self.is_playing() else None

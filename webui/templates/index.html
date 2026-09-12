@@ -76,6 +76,7 @@
   .station .meta { min-width: 0; }
   .station .meta .name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .station .meta .detail { display: block; font-size: 12px; color: var(--muted); }
+  .station-actions { display: flex; gap: 6px; flex-shrink: 0; }
   .search-row { display: flex; gap: 8px; margin-top: 14px; }
   .search-row input[type=text] {
     flex: 1;
@@ -178,16 +179,34 @@ async function loadStations() {
     row.className = 'station';
     row.dataset.id = station.id;
     row.innerHTML = `<span>${station.name}</span>`;
+
+    const actions = document.createElement('div');
+    actions.className = 'station-actions';
+
     const playBtn = document.createElement('button');
     playBtn.textContent = 'Play';
     playBtn.onclick = () => playStation(station.id);
-    row.appendChild(playBtn);
+    actions.appendChild(playBtn);
+
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'secondary';
+    removeBtn.textContent = 'Remove';
+    removeBtn.onclick = () => removeStation(station.id, station.name);
+    actions.appendChild(removeBtn);
+
+    row.appendChild(actions);
     list.appendChild(row);
   }
 }
 
 function playStation(id) { api(`/api/radio/play/${id}`, { method: 'POST' }).then(refreshStatus); }
 function stopRadio() { api('/api/radio/stop', { method: 'POST' }).then(refreshStatus); }
+async function removeStation(id, name) {
+  if (!confirm(`Remove "${name}" from the station list?`)) return;
+  await api(`/api/radio/stations/${id}`, { method: 'DELETE' });
+  await loadStations();
+  refreshStatus();
+}
 function activateSpotify() { api('/api/spotify/activate', { method: 'POST' }).then(refreshStatus); }
 function setVolume(percent) {
   api('/api/volume', {

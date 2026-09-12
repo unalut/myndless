@@ -56,6 +56,12 @@ def create_app(orch: Orchestrator) -> Flask:
         station = orch.add_radio_station(name, url, station_id=data.get("id") or None)
         return jsonify({"id": station.id, "name": station.name}), 201
 
+    @app.delete("/api/radio/stations/<station_id>")
+    def remove_station(station_id: str):
+        if not orch.remove_radio_station(station_id):
+            return jsonify({"error": f"unknown station {station_id!r}"}), 404
+        return "", 204
+
     @app.post("/api/radio/play/<station_id>")
     def play_station(station_id: str):
         try:
