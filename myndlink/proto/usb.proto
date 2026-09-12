@@ -1,0 +1,17 @@
+syntax = "proto3";
+package ActionsLink.Usb;
+
+
+/**
+ * This command is used to send a HID action to the device.
+ */
+message HidAction {
+  enum Action {
+    PLAY_PAUSE = 0;
+    NEXT_TRACK = 1;
+    PREVIOUS_TRACK = 2;
+  }
+
+  /** The action to perform. */
+  Action action = 1;
+}

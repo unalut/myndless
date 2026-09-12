@@ -1,0 +1,12 @@
+syntax = "proto3";
+package ActionsLink.Battery;
+
+
+/** Enumeration of battery charger status. */
+enum ChargerStatus {
+  NotConnected = 0;
+  Active = 1;
+  Inactive = 2;
+  Fault = 3;
+}
+

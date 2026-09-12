@@ -1,0 +1,113 @@
+syntax = "proto3";
+package ActionsLink.Audio;
+
+import "common.proto";
+
+// TODO: Adjust as necessary
+enum AudioSourceType {
+  /** Bluetooth A2DP1 */
+  A2DP1 = 0;
+
+  /** Bluetooth A2DP2 */
+  A2DP2 = 1;
+
+  /** USB audio */
+  USB = 2;
+
+  /** Aux audio input */
+  ANALOG = 3;
+}
+
+
+/**
+ * This message is used to control/notify the audio source.
+ */
+message Source
+{
+  AudioSourceType source = 1;
+}
+
+
+/**
+ * This command is used to control the audio volume.
+ */
+message VolumeControl {
+  enum VolumeControlAction {
+    VOLUME_UP = 0;
+    VOLUME_DOWN = 1;
+  }
+
+  /** The volume control action to perform */
+  VolumeControlAction action = 1;
+}
+
+message Volume
+{
+  /** The new volume */
+  oneof Volume {
+    /** The new volume in percent (0 - 100%). */
+    int32 percent = 1 [(Common.minVal) = 0, (Common.maxVal) = 100];
+
+    /** The new volume in absolute AVRCP units (0 - 127). */
+    int32 absolute_avrcp = 2 [(Common.minVal) = 0, (Common.maxVal) = 127];
+
+    /** The new volume in dB. */
+    int32 db = 3;
+  }
+
+  /** True if the volume is muted, false otherwise */
+  bool is_muted = 4;
+}
+
+message Bass
+{
+  int32 value = 1 [(Common.minVal) = -10, (Common.maxVal) = 10];
+}
+
+message Treble
+{
+  int32 value = 1 [(Common.minVal) = -10, (Common.maxVal) = 10];
+}
+
+enum SoundIcon {
+  NONE = 0;
+  BATTERY_LOW = 1;
+  BT_CONNECTED = 2;
+  BT_DISCONNECTED = 3;
+  BT_PAIRING = 4;
+  CHARGING = 5;
+  MULTISPEAKER_CHAIN_CONNECTED = 6;
+  MULTISPEAKER_CHAIN_DISCONNECTED = 7;
+  MULTISPEAKER_CHAIN_PAIRING = 8;
+  POSITIVE_FEEDBACK = 9;
+  POWER_OFF = 10;
+  POWER_ON = 11;
+  BUTTON_FAILED = 12;
+  ERROR = 13;
+  FW_ANNOUNCEMENT = 14;
+}
+
+enum SoundIconPlaybackMode {
+  /** Play immediately, stopping any sound icons that are currently playing */
+  PLAY_IMMEDIATELY = 0;
+
+  /** Play after the current sound icon has finished playing,
+  or immediately if nothing is currently playing */
+  PLAY_AFTER_CURRENT = 1;
+}
+
+message PlaySoundIcon {
+  SoundIcon sound_icon = 1;
+  SoundIconPlaybackMode playback_mode = 2;
+  bool loop_forever = 3;
+}
+
+/**
+ * This command is used to stop playing a sound icon.
+ * - If no sound icon is currently playing, this command has no effect.
+ * - If the sound icon in this message does not match the currently playing sound icon,
+ *   this command has no effect.
+ */
+message StopSoundIcon {
+  SoundIcon sound_icon = 1;
+}

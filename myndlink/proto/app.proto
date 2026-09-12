@@ -1,0 +1,9 @@
+syntax = "proto3";
+package ActionsLink.App;
+
+
+/** A generic packet to be sent to the device connected to the Actions chip. */
+message Packet {
+  /** The payload of the packet. */
+  bytes payload = 1;
+}

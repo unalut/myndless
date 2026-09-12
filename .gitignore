@@ -1,0 +1,8 @@
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+
+# Vendored upstream repos, kept as read-only reference material — not ours
+# to version. Re-clone with the commands in README.md if missing.
+reference/

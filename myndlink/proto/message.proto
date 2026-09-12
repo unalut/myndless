@@ -1,0 +1,265 @@
+syntax = "proto3";
+package ActionsLink;
+
+import "app.proto";
+import "audio.proto";
+import "battery.proto";
+import "bluetooth.proto";
+import "common.proto";
+import "system.proto";
+import "usb.proto";
+import "kvstorage.proto";
+
+import "device.proto";
+
+import "nanopb.proto";
+
+message FromMcu {
+  oneof Payload {
+    FromMcuRequest  request = 1;
+    FromMcuResponse response = 2;
+    FromMcuEvent    event = 3;
+  };
+}
+
+message FromMcuRequest {
+  /** Request sequence number. */
+  uint32 seq = 1;
+
+  option (nanopb_msgopt).submsg_callback = true;
+  oneof Request {
+    /** Start of system requests. */
+    Common.Command                soft_reset = 10;
+    Common.Command                get_firmware_version = 11;
+    System.PowerState             set_power_state = 12;
+    Common.Command                enter_dfu_mode = 13;
+
+    /** Start of audio requests. */
+    Audio.Source                  set_audio_source = 20;
+    Audio.VolumeControl           set_volume = 21;
+    Audio.PlaySoundIcon           play_sound_icon = 22;
+    Audio.StopSoundIcon           stop_sound_icon = 23;
+
+    /** Start of Bluetooth requests. */
+    Common.Command                get_a2dp_data = 30;
+    Bluetooth.AvrcpAction         send_avrcp_action = 31;
+    Bluetooth.AbsoluteAvrcpVolume set_absolute_avrcp_volume = 32;
+    Common.Command                get_paired_device_list = 33;
+    Bluetooth.Device              get_device_name = 34;
+    Common.Command                disconnect_all_bt_devices = 35;
+    bool                          enable_bt_reconnection = 36;
+    Common.Command                clear_bt_paired_device_list = 37;
+    Bluetooth.PairingState        set_bt_pairing_state = 38;
+    Common.Command                get_bt_pairing_state = 39;
+    Common.Command                get_bt_connection_state = 40;
+//     Common.Command                get_tws_connection_state = 41;
+    Common.Command                get_csb_state = 42;
+    Bluetooth.ExitCsbMode         exit_csb_mode = 43;
+//     Common.Command                exit_tws_mode = 44;
+    Common.Command                get_bt_mac_address = 45;
+    Common.Command                get_ble_mac_address = 46;
+    Common.Command                get_bt_rssi_value = 47;
+    Common.Command                get_this_device_name = 48;
+
+    /** Start of USB requests. */
+    Usb.HidAction                 send_usb_hid_action = 50;
+
+    /** Start of persistent storage requests. */
+    // Implemented in the MCU
+    // KVStorage.Read                read_key_value = 60;
+    // KVStorage.Write               write_key_value = 61;
+
+    /** Start of app requests. */
+    App.Packet                    send_app_packet = 100;
+  };
+}
+
+message FromMcuResponse {
+  /** Sequence number of the request this message is responding to. */
+  uint32 seq = 1;
+
+  option (nanopb_msgopt).submsg_callback = true;
+  oneof Response {
+    /** Start of system responses. */
+    System.FirmwareVersion        get_mcu_firmware_version = 10;
+    // string                        get_serial_number = 11;
+    Eco.Device.Color              get_color = 12;
+    Common.Result                 set_off_timer = 13;
+    System.OffTimer               get_off_timer = 14;
+    Common.Result                 set_brightness = 15;
+    uint32                        get_brightness = 16 [(Common.minVal) = 0, (Common.maxVal) = 100];
+    System.FirmwareVersion        get_pdcontroller_firmware_version = 17;
+
+    /** Start of audio responses. */
+    Common.Result                 set_bass = 30;
+    Audio.Bass                    get_bass = 31;
+    Common.Result                 set_treble = 32;
+    Audio.Treble                  get_treble = 33;
+    Common.Result                 set_eco_mode = 34;
+    bool                          get_eco_mode = 35;
+    Common.Result                 set_sound_icons = 36;
+    bool                          get_sound_icons = 37;
+
+    /** Start of battery responses. */
+    Common.Result                 set_battery_friendly_charging = 50;
+    bool                          get_battery_friendly_charging = 51;
+
+    uint32                        get_battery_capacity = 52;
+    uint32                        get_battery_max_capacity = 53;
+  }
+}
+
+message FromMcuEvent {
+  oneof Event {
+    /** Start of system events. */
+    bool notify_aux_connected = 10;
+    bool notify_usb_connected = 11;
+    uint32 notify_battery_level = 12;
+    Battery.ChargerStatus notify_charger_status = 13;
+    Eco.Device.Color      notify_color = 14;
+    bool notify_battery_friendly_charging = 15;
+
+    /** Battery history */
+    bytes notify_battery_history_buffer_15m = 20;
+    bytes notify_battery_history_buffer_1h = 21;
+    bytes notify_battery_history_buffer_5h = 22;
+    bytes notify_battery_history_buffer_24h = 23;
+
+
+    /** Audio events */
+    bool notify_eco_mode = 30;
+  }
+}
+
+message ToMcu {
+  option (nanopb_msgopt).submsg_callback = true;
+  oneof Payload {
+    ToMcuRequest  request = 1;
+    ToMcuResponse response = 2;
+    ToMcuEvent    event = 3;
+  };
+}
+
+message ToMcuRequest {
+  /** Request sequence number. */
+  uint32 seq = 1;
+
+  option (nanopb_msgopt).submsg_callback = true;
+  oneof Request {
+    /** Start of system requests. */
+    Common.Command         get_mcu_firmware_version = 10;
+    // Common.Command         get_serial_number = 11;
+    Common.Command         get_color = 12;
+    System.OffTimer        set_off_timer = 13;
+    Common.Command         get_off_timer = 14;
+    uint32                 set_brightness = 15 [(Common.minVal) = 0, (Common.maxVal) = 100];
+    Common.Command         get_brightness = 16;
+    Common.Command         get_pdcontroller_firmware_version = 17;
+
+    /** Audio related requests. */
+    Audio.Bass             set_bass = 30;
+    Common.Command         get_bass = 31;
+    Audio.Treble           set_treble = 32;
+    Common.Command         get_treble = 33;
+    bool                   set_eco_mode = 36;
+    Common.Command         get_eco_mode = 37;
+    bool                   set_sound_icons = 38;
+    Common.Command         get_sound_icons = 39;
+
+
+    /** Battery related requests. */
+    bool                   set_battery_friendly_charging = 40;
+    Common.Command         get_battery_friendly_charging = 41;
+
+    Common.Command         get_battery_capacity = 42;
+    Common.Command         get_battery_max_capacity = 43;
+  }
+}
+
+message ToMcuResponse {
+  /** Sequence number of the request this message is responding to. */
+  uint32 seq = 1;
+
+  option (nanopb_msgopt).submsg_callback = true;
+  oneof Response {
+    /** Start of system responses. */
+    Common.Result                        soft_reset = 10;
+    System.FirmwareVersion               get_firmware_version = 11;
+    Common.Result                        set_power_state = 12;
+    Common.Result                        enter_dfu_mode = 13;
+
+    /** Start of audio responses. */
+    Common.Result                        set_audio_source = 20;
+    Common.Result                        set_volume = 21;
+    Common.Result                        play_sound_icon = 22;
+    Common.Result                        stop_sound_icon = 23;
+
+    /** Start of Bluetooth responses. */
+    Bluetooth.ResponseA2dpData           get_a2dp_data = 30;
+    Common.Result                        send_avrcp_action = 31;
+    Common.Result                        set_absolute_avrcp_volume = 32;
+    Bluetooth.ResponsePairedDeviceList   get_paired_device_list = 33;
+    Bluetooth.ResponseDeviceName         get_device_name = 34;
+    Common.Result                        disconnect_all_bt_devices = 35;
+    Common.Result                        enable_bt_reconnection = 36;
+    Common.Result                        clear_bt_paired_device_list = 37;
+    Common.Result                        set_bt_pairing_state = 38;
+    Bluetooth.ResponsePairingState       get_bt_pairing_state = 39;
+    Bluetooth.ResponseConnectionState    get_bt_connection_state = 40;
+//     Bluetooth.ResponseTwsConnectionState get_tws_connection_state = 41;
+    Bluetooth.ResponseCsbState           get_csb_state = 42;
+    Common.Result                        exit_csb_mode = 43;
+//     Common.Result                        exit_tws_mode = 44;
+    Bluetooth.Device                     get_bt_mac_address = 45;
+    Bluetooth.Device                     get_ble_mac_address = 46;
+    Bluetooth.RSSI                       get_bt_rssi_value = 47;
+    Bluetooth.ResponseDeviceName         get_this_device_name = 48;
+
+    /** Start of USB responses. */
+    Common.Result                        send_usb_hid_action = 50;
+
+    /** Start of persistent storage responses. */
+    // Implemented in the MCU
+    // KVStorage.ReadResponse                read_key_value = 60;
+    // Common.Result                         write_key_value = 61;
+
+    /** Start of app responses. */
+    Common.Result                        send_app_packet = 100;
+  }
+}
+
+message ToMcuEvent {
+  option (nanopb_msgopt).submsg_callback = true;
+  oneof Event {
+    /** Start of system events. */
+    /** Event signalling that the application has initialized successfully and is ready to receive requests. */
+    Common.Command                          notify_system_ready = 10;
+    System.PowerState                       notify_power_state = 11;
+//    Common.Command                          notify_tws_csb_master_power_off = 12;
+
+    /** Start of audio events. */
+    Audio.Source                            notify_audio_source = 20;
+    Audio.Volume                            notify_volume = 21;
+    bool                                    notify_stream_state = 22;
+
+    /** Start of Bluetooth events. */
+    Bluetooth.A2dpData                      notify_bt_a2dp_data = 30;
+    Bluetooth.AvrcpState                    notify_bt_avrcp_state = 31;
+    Bluetooth.AvrcpTrackChangedEvt          notify_bt_avrcp_track_changed = 32;
+    Bluetooth.AvrcpTrackPositionChangedEvt  notify_bt_avrcp_track_position_changed = 33;
+    Bluetooth.ConnectionEvt                 notify_bt_connection = 34;
+    Bluetooth.DisconnectionEvt              notify_bt_disconnection = 35;
+    Bluetooth.DevicePaired                  notify_bt_device_paired = 36;
+    Bluetooth.PairingState                  notify_bt_pairing_state = 37;
+    Bluetooth.ConnectionState               notify_bt_connection_state = 38;
+//     Bluetooth.TwsConnectionState            notify_tws_connection_state = 39;
+    Bluetooth.CsbState                      notify_csb_state = 40;
+
+    /** Start of USB events. */
+    bool                                    notify_usb_connected = 50;
+    bool                                    notify_dfu_mode = 51;
+
+    /** Start of app events. */
+    App.Packet                              app_packet = 100;
+  }
+}

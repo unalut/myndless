@@ -1,0 +1,314 @@
+syntax = "proto3";
+package ActionsLink.Bluetooth;
+
+import "common.proto";
+import "error.proto";
+
+
+enum ChannelMode {
+  /* Single mono channel. */
+  Mono = 0;
+
+  /* Stereo mode encodes the left and right channels separately, but
+   * enforcing only single bitpool. */
+  Stereo = 1;
+}
+
+
+/** Enumeration of codecs. */
+enum CodecType {
+  SBC = 0;
+  MP3 = 1;
+  AAC = 2;
+  // TODO: continue
+}
+
+
+/** Response message to get A2DP data. */
+message ResponseA2dpData {
+  oneof Result {
+    A2dpData data = 1;
+    Error.Error error = 2;
+  }
+}
+
+
+/** Message to notify A2DP data. */
+message A2dpData {
+  /** Channel mode */
+  ChannelMode channel_mode = 1;
+
+  /** Codec */
+  CodecType codec = 2;
+
+  /** Sample rate */
+  uint32 sample_rate = 3;
+}
+
+
+/**
+ * Message to request an AVRCP action.
+ */
+message AvrcpAction {
+  enum Action {
+    PLAY = 0;
+    PAUSE = 1;
+    TOGGLE_PLAY_PAUSE = 2;
+    NEXT_TRACK = 3;
+    PREVIOUS_TRACK = 4;
+  }
+
+  /** Action to perform. */
+  Action action = 1;
+}
+
+
+/**
+ * Message to notify an AVRCP state change event.
+ */
+message AvrcpState {
+  enum AvrcpState {
+    PLAY = 0;
+    PAUSE = 1;
+    STOP = 2;
+  }
+
+  AvrcpState state = 1;
+}
+
+
+/**
+ * Message to notify an AVRCP track changed event.
+ */
+message AvrcpTrackChangedEvt {
+  /** New track ID. */
+  uint64 track_id = 1;
+}
+
+
+/**
+ * Message to notify an AVRCP track position changed event.
+ */
+message AvrcpTrackPositionChangedEvt {
+  /** New track position in milliseconds since the start of the track. */
+  uint32 ms_since_start = 1;
+}
+
+
+/**
+ * Message to set the volume using an absolute AVRCP value.
+ */
+message AbsoluteAvrcpVolume {
+  /** Absolute AVRCP volume value. */
+  uint32 volume = 2 [(Common.minVal) = 0, (Common.maxVal) = 127];
+}
+
+
+/**
+ * Message to notify a connection event.
+ */
+message ConnectionEvt {
+  /** Bluetooth address of the device. */
+  Device device = 1;
+}
+
+
+/**
+ * Message to notify a disconnection event.
+ */
+message DisconnectionEvt {
+  enum DisconnectionType {
+    LINK_LOSS = 0;
+    USER_REQUEST = 1;
+  }
+
+  /** Bluetooth address of the disconnected device. */
+  Device device = 1;
+
+  /** Type of disconnection. */
+  DisconnectionType type = 2;
+}
+
+
+/**
+ * Container message representing a Bluetooth device.
+ */
+message Device {
+  /** Bluetooth address in big endian format.
+   *  12:34:56:78:9A:BC = 0x0000123456789ABC */
+  uint64 address = 1;
+}
+
+/**
+ * Container message representing a Bluetooth RSSI value.
+ */
+message RSSI {
+  /** Bluetooth RSSI value.*/
+  int32 rssi = 1;
+}
+
+/**
+ * Message to notify that a device has been paired.
+ */
+message DevicePaired {
+  /** Paired device. */
+  Device device = 1;
+}
+
+
+/**
+ * Paired device list message.
+ */
+message PairedDeviceList {
+  /** List of paired devices. */
+  repeated Device devices = 2;
+}
+
+
+/**
+ * Message to respond to a paired device list request.
+ */
+message ResponsePairedDeviceList {
+  oneof Result {
+    PairedDeviceList list = 1;
+    Error.Error error = 2;
+  }
+}
+
+
+/**
+ * Message to respond to a device name request.
+ */
+message ResponseDeviceName {
+  oneof Result {
+    /** Name of the device. */
+    string name = 1;
+    Error.Error error = 2;
+  }
+}
+
+
+/**
+ * Message to notify the current pairing state.
+ */
+message PairingState {
+  enum PairingType {
+    IDLE = 0;
+    BT_PAIRING = 1;
+    // TWS_MASTER_PAIRING = 2;
+    // TWS_SLAVE_PAIRING = 3;
+    CSB_BROADCASTER = 4;
+    CSB_RECEIVER = 5;
+    // TWS_AUTO = 6;
+    CSB_AUTO = 7;
+  }
+
+  /** Pairing state. */
+  PairingType state = 1;
+}
+
+
+/**
+ * Message to respond to a pairing state request.
+ */
+message ResponsePairingState {
+  oneof Result {
+    PairingState state = 1;
+    Error.Error error = 2;
+  }
+}
+
+
+/**
+ * Message to notify the current connection state.
+ */
+message ConnectionState {
+  enum ConnectionType {
+    DISCONNECTED = 0;
+    CONNECTED = 1;
+  }
+
+  /** Connection state. */
+  ConnectionType state = 1;
+}
+
+
+/**
+ * Message to respond to a connection state request.
+ */
+message ResponseConnectionState {
+  oneof Result {
+    ConnectionState state = 1;
+    Error.Error error = 2;
+  }
+}
+
+
+/**
+ * Message to notify the current TWS connection state.
+ */
+// message TwsConnectionState {
+//  enum TwsConnectionType {
+//    DISCONNECTED = 0;
+//    MASTER = 1;
+//    SLAVE = 2;
+//  }
+
+  /** Connection state. */
+//  TwsConnectionType state = 1;
+//}
+
+
+/**
+ * Message to respond to a TWS connection state request.
+ */
+// message ResponseTwsConnectionState {
+//   oneof Result {
+//     TwsConnectionState state = 1;
+//     Error.Error error = 2;
+//   }
+// }
+
+/**
+ * Message to notify the current CSB state.
+ */
+message CsbState {
+  enum CsbStateType {
+    DISABLED = 0;
+    BROADCASTING = 1;
+    RECEIVER_PAIRING = 2;
+    RECEIVER_CONNECTED = 3;
+  }
+
+  CsbStateType state = 1;
+
+  enum CsbReceiverDisconnectReason {
+    UNKNOWN = 0;
+    USER_REQUEST = 1;
+    POWER_OFF = 2;
+    LINK_LOSS = 3;
+  }
+
+  CsbReceiverDisconnectReason disconnect_reason = 2;
+}
+
+/**
+ * Message to respond to a CSB state request.
+ */
+message ResponseCsbState {
+  oneof Result {
+    CsbState state = 1;
+    Error.Error error = 2;
+  }
+}
+
+message ExitCsbMode {
+  enum ExitReason {
+    UNKNOWN = 0;
+    USER_REQUEST = 1;
+    POWER_OFF = 2;
+    // LINK_LOSS = 3; not used, but we reserve the ID to avoid collisions
+  }
+
+  ExitReason exit_reason = 1;
+}

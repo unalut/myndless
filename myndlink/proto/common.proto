@@ -1,0 +1,25 @@
+syntax = "proto3";
+package ActionsLink.Common;
+
+import "error.proto";
+
+import "google/protobuf/descriptor.proto";
+
+/* Field options for attaching a range to a numeric value. */
+extend google.protobuf.FieldOptions {
+  int32 minVal = 50001;
+  int32 maxVal = 50002;
+  int32 stepVal = 50003;
+}
+
+/**
+ * Generic message used for commands (e.g. reset) or requests without "parameters" (e.g. get_status).
+ */
+message Command { }
+
+/**
+ * Generic message used to communicate an operation's result.
+ */
+message Result {
+  Error.Error status = 1;
+}

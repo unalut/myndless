@@ -1,0 +1,28 @@
+syntax = "proto3";
+package ActionsLink.KVStorage;
+
+import "error.proto";
+
+/** Define KV element. */
+message Element {
+  uint32 key = 1;
+  uint32 value = 2;
+}
+
+/** Define KV write. */
+message Write {
+  Element el = 1;
+}
+
+/** Define KV read. */
+message Read {
+  uint32 key = 1;
+}
+
+/** Define KV read response. */
+message ReadResponse {
+  oneof Result {
+    Element el = 1;
+    Error.Error error = 2;
+  }
+}

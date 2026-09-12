@@ -1,0 +1,15 @@
+syntax = "proto3";
+package ActionsLink.Error;
+
+enum Code {
+  Success = 0;
+  OperationFailed = 1;
+  OperationCanceled = 2;
+  OperationNotSupported = 3;
+  ResourceUnavailable = 4;
+}
+
+message Error {
+  Code code = 1;
+  string text = 2;
+}

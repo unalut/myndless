@@ -1,0 +1,9 @@
+syntax = "proto3";
+package ActionsLink.Eco.Device;
+
+enum Color {
+  BLACK = 0;
+  WHITE = 1;
+  BERRY = 2;
+  MINT = 3;
+}

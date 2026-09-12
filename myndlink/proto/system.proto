@@ -1,0 +1,62 @@
+syntax = "proto3";
+package ActionsLink.System;
+
+import "common.proto";
+
+/**
+ * Message to transmit the firmware version of the device.
+ */
+message FirmwareVersion {
+  /** Major version number. */
+  uint32 major = 1;
+
+  /** Minor version number. */
+  uint32 minor = 2;
+
+  /** Patch version number. */
+  uint32 patch = 3;
+
+  /** Build version string (see git describe). */
+  string build = 4;
+}
+
+/**
+ * Message to request/notify a power state change.
+ */
+message PowerState {
+  /** The various application power modes that the Actions chip can be in. */
+  enum SystemPowerMode {
+    /** The chip is powered off. */
+    OFF = 0;
+
+    /** The application is running and functional. */
+    ON = 1;
+
+    /** The chip is in standby mode. */
+    STANDBY = 2;
+
+    /** The BT chip has requested a shutdown. */
+    SHUTDOWN_REQUEST = 3;
+
+    // TODO: Adjust if necessary
+  }
+
+  /** System power mode. */
+  SystemPowerMode mode = 1;
+}
+
+message OffTimer {
+  enum State {
+    /** The off timer is disabled. */
+    DISABLED = 0;
+
+    /** The off timer is enabled. */
+    ENABLED = 1;
+  }
+
+  /** The state of the off timer. */
+  State state = 1;
+
+  /** The off timer in minutes. */
+  uint32 minutes = 2 [(Common.minVal) = 5, (Common.maxVal) = 240];
+}
