@@ -4,24 +4,21 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>myndless</title>
+<link rel="icon" href="{{ url_for('static', filename='logo.svg') }}" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;900&display=swap" rel="stylesheet">
 <style>
   :root {
-    color-scheme: light dark;
-    --bg: #f5f5f7;
+    color-scheme: light;
+    --bg: #ffffff;
     --card: #ffffff;
     --text: #1c1c1e;
     --muted: #6e6e73;
-    --accent: #0a84ff;
-    --border: #e5e5ea;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #000000;
-      --card: #1c1c1e;
-      --text: #f5f5f7;
-      --muted: #8e8e93;
-      --border: #2c2c2e;
-    }
+    --accent: #96536a;
+    --border: #e8dfe3;
+    --mynd-gray: #4b4a4c;
+    --less-mauve: #a8637d;
   }
   * { box-sizing: border-box; }
   body {
@@ -33,6 +30,25 @@
   }
   .wrap { max-width: 480px; margin: 0 auto; }
   h1 { font-size: 22px; margin: 0 0 4px; }
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 4px;
+  }
+  h1.logo {
+    font-family: "Poppins", -apple-system, sans-serif;
+    font-weight: 900;
+    font-size: 26px;
+    letter-spacing: -0.01em;
+    line-height: 1;
+    margin: 0;
+  }
+  h1.logo .mynd { color: var(--mynd-gray); }
+  h1.logo .less { font-weight: 600; color: var(--less-mauve); }
+  .suma-logo { height: 20px; width: auto; display: block; }
+  .suma-logo { color: var(--text); flex-shrink: 0; }
   .subtitle { color: var(--muted); font-size: 14px; margin-bottom: 24px; }
   .card {
     background: var(--card);
@@ -95,7 +111,10 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>myndless</h1>
+  <div class="topbar">
+    <h1 class="logo"><span class="mynd">MYND</span><span class="less">less</span></h1>
+    <img class="suma-logo" src="{{ url_for('static', filename='suma_logo.png') }}" alt="SUMA">
+  </div>
   <div class="subtitle">MYNDberry, without moOde.</div>
 
   <div class="card">
