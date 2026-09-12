@@ -7,6 +7,7 @@ from __future__ import annotations
 import logging
 import re
 import subprocess
+import time
 from typing import Callable
 
 log = logging.getLogger("myndless.audio")
@@ -16,6 +17,14 @@ _MUTED_RE = re.compile(r"\[(on|off)\]")
 
 # Reasonably common mixer control names across Pi HATs/DACs, in preference order.
 _COMMON_MIXER_NAMES = ["PCM", "Digital", "Master", "Speaker", "Headphone"]
+
+# Observed on real hardware: `amixer -c <card> scontrols` occasionally exits 0
+# with no controls listed even though the same command run a moment later (or
+# by hand) finds them fine - some transient condition around ALSA/softvol
+# state right after a process starts, root cause not pinned down. A few
+# retries with a short delay reliably works around it.
+_AUTODETECT_ATTEMPTS = 4
+_AUTODETECT_RETRY_DELAY_S = 0.3
 
 Runner = Callable[..., "subprocess.CompletedProcess[str]"]
 
@@ -34,19 +43,30 @@ class AudioBackend:
     # ------------------------------------------------------------------ #
 
     def _autodetect_mixer(self) -> str:
+        for attempt in range(1, _AUTODETECT_ATTEMPTS + 1):
+            mixer = self._autodetect_mixer_once(attempt)
+            if mixer:
+                if attempt > 1:
+                    log.info("found ALSA mixer control %r on attempt %d", mixer, attempt)
+                return mixer
+            if attempt < _AUTODETECT_ATTEMPTS:
+                time.sleep(_AUTODETECT_RETRY_DELAY_S)
+        return ""
+
+    def _autodetect_mixer_once(self, attempt: int) -> str:
         try:
             result = self._run(
                 ["amixer", "-c", self._card, "scontrols"],
                 capture_output=True, text=True, timeout=2,
             )
         except (OSError, subprocess.SubprocessError):
-            log.exception("failed to list ALSA mixer controls")
+            log.exception("failed to list ALSA mixer controls (attempt %d)", attempt)
             return ""
 
         if result.returncode != 0:
             log.warning(
-                "amixer -c %s scontrols exited %d - stdout=%r stderr=%r",
-                self._card, result.returncode, result.stdout, result.stderr,
+                "amixer -c %s scontrols exited %d on attempt %d - stdout=%r stderr=%r",
+                self._card, result.returncode, attempt, result.stdout, result.stderr,
             )
 
         available = re.findall(r"'([^']+)'", result.stdout)
