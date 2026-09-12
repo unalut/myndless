@@ -9,14 +9,19 @@ audio routing - it answers two questions:
   2. Do those bytes parse as valid Actionslink frames? (protocol sanity check)
 
 Usage:
-    python3 scripts/uart_probe.py [port] [--handshake]
+    python3 scripts/uart_probe.py [port]
+    python3 scripts/uart_probe.py [port] --handshake [--listen=SECONDS]
 
-    port          defaults to /dev/serial0
-    --handshake   also send notify_system_ready + notify_power_state(ON) and
-                   try a get_mcu_firmware_version request, like the real
-                   daemon does on startup. Only try this once raw frames are
-                   confirmed flowing - it fully engages the protocol
-                   including sending ACKs back to the MCU.
+    port           defaults to /dev/serial0
+    --handshake    send notify_system_ready + notify_power_state(ON) and try
+                   a get_mcu_firmware_version request, like the real daemon
+                   does on startup. The MCU stays silent until it sees this -
+                   plain sniffing (no --handshake) will see nothing even on
+                   a perfectly working link.
+    --listen=N     after a successful handshake, stay up for N seconds
+                   logging every event/request the MCU sends (e.g. from
+                   pressing buttons on the speaker) instead of exiting
+                   immediately.
 """
 
 from __future__ import annotations
@@ -92,7 +97,7 @@ def _describe_protobuf(payload: bytes) -> None:
         print(f"       FromMcuResponse.{msg.response.WhichOneof('Response')} (seq={msg.response.seq})")
 
 
-def handshake(port: str) -> None:
+def handshake(port: str, listen_seconds: float = 0.0) -> None:
     from myndlink.client import ActionslinkClient
 
     print(f"Opening {port}, running the boot handshake ...\n")
@@ -110,19 +115,76 @@ def handshake(port: str) -> None:
 
         version = client.get_mcu_firmware_version(timeout=1.0)
         print(f"MCU firmware version: {version.major}.{version.minor}.{version.patch} ({version.build})")
+
+        if listen_seconds > 0:
+            _listen(client, listen_seconds)
     except Exception as exc:
         print(f"handshake step failed: {exc}")
     finally:
         client.stop()
 
 
+def _listen(client, seconds: float) -> None:
+    """Register a catch-all logger for every request/event field and stay
+    up for a while - use this once the handshake succeeds, to see live
+    traffic from physical button/knob presses on the speaker."""
+    import common_pb2
+    import error_pb2
+
+    def log_event(name):
+        def handler(value):
+            print(f"EVENT  {name}: {value}")
+        return handler
+
+    def log_request(name):
+        def handler(value, seq):
+            print(f"REQUEST {name} (seq={seq}): {value}")
+            result = common_pb2.Result()
+            result.status.code = error_pb2.Code.Success
+            return result
+        return handler
+
+    event_names = [
+        "notify_aux_connected", "notify_usb_connected", "notify_battery_level",
+        "notify_charger_status", "notify_color", "notify_battery_friendly_charging",
+        "notify_eco_mode",
+    ]
+    request_names = [
+        "soft_reset", "get_firmware_version", "set_power_state", "enter_dfu_mode",
+        "set_audio_source", "set_volume", "play_sound_icon", "stop_sound_icon",
+        "get_a2dp_data", "send_avrcp_action", "set_absolute_avrcp_volume",
+        "get_paired_device_list", "get_device_name", "disconnect_all_bt_devices",
+        "enable_bt_reconnection", "clear_bt_paired_device_list", "set_bt_pairing_state",
+        "get_bt_pairing_state", "get_bt_connection_state", "get_csb_state",
+        "exit_csb_mode", "get_bt_mac_address", "get_ble_mac_address",
+        "get_bt_rssi_value", "get_this_device_name", "send_usb_hid_action",
+        "send_app_packet",
+    ]
+    for name in event_names:
+        client.on_event(name, log_event(name))
+    for name in request_names:
+        # Note: a couple of these (get_firmware_version, get_this_device_name,
+        # get_a2dp_data, get_bt_mac_address, ...) really want a differently
+        # typed response than plain Common.Result - fine for a quick listen
+        # session, but this generic handler will log a "dispatch failed"
+        # for those rather than crash anything.
+        client.on_request(name, log_request(name))
+
+    print(f"\nListening for {seconds:.0f}s - press buttons / turn knobs on the speaker now ...\n")
+    time.sleep(seconds)
+
+
 if __name__ == "__main__":
     args = sys.argv[1:]
     do_handshake = "--handshake" in args
+    listen_for = 0.0
+    for a in args:
+        if a.startswith("--listen="):
+            listen_for = float(a.split("=", 1)[1])
     args = [a for a in args if not a.startswith("--")]
     port_arg = args[0] if args else "/dev/serial0"
 
     if do_handshake:
-        handshake(port_arg)
+        handshake(port_arg, listen_seconds=listen_for)
     else:
         sniff(port_arg)
