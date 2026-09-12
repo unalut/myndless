@@ -48,7 +48,7 @@
   h1.logo .mynd { color: var(--mynd-gray); }
   h1.logo .less { font-weight: 600; color: var(--less-mauve); }
   .suma-logo { height: 20px; width: auto; display: block; }
-  .suma-logo { color: var(--text); flex-shrink: 0; }
+  .topbar a { flex-shrink: 0; line-height: 0; }
   .subtitle { color: var(--muted); font-size: 14px; margin-bottom: 24px; }
   .card {
     background: var(--card);
@@ -113,9 +113,11 @@
 <div class="wrap">
   <div class="topbar">
     <h1 class="logo"><span class="mynd">MYND</span><span class="less">less</span></h1>
-    <img class="suma-logo" src="{{ url_for('static', filename='suma_logo.png') }}" alt="SUMA">
+    <a href="https://www.sumaberlin.de" target="_blank" rel="noopener noreferrer">
+      <img class="suma-logo" src="{{ url_for('static', filename='suma_logo.png') }}" alt="SUMA">
+    </a>
   </div>
-  <div class="subtitle">MYNDberry, without moOde.</div>
+  <div class="subtitle">MYNDberry, but less...</div>
 
   <div class="card">
     <h2>Now playing</h2>
