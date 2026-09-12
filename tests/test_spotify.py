@@ -89,6 +89,16 @@ def test_write_onevent_script_embeds_port_and_is_executable(tmp_path=None):
         assert os.access(path, os.X_OK)
 
 
+def test_start_survives_missing_librespot_binary():
+    def missing_binary_spawner(args, **kwargs):
+        raise FileNotFoundError(2, "No such file or directory", args[0])
+
+    backend = SpotifyBackend(spawner=missing_binary_spawner)
+    backend.start()  # must not raise
+    assert not backend.is_running()
+    assert not backend.is_active
+
+
 def test_playback_control_is_a_documented_no_op():
     backend = SpotifyBackend(spawner=FakeSpawner())
     assert backend.play_pause() is False

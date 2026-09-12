@@ -78,7 +78,18 @@ class SpotifyBackend:
         if self._onevent_script_path:
             args += ["--onevent", self._onevent_script_path]
         log.info("starting librespot as %r", self._device_name)
-        self._proc = self._spawn(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        try:
+            self._proc = self._spawn(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except OSError:
+            # Most commonly FileNotFoundError - librespot isn't installed/on
+            # PATH yet. Not fatal: everything else (radio, Actionslink, web
+            # UI) should keep working: just no Spotify Connect until it is.
+            log.warning(
+                "could not start %r (not installed / not on PATH?) - Spotify Connect unavailable, "
+                "everything else still works. See README for install options.",
+                self._librespot_bin,
+            )
+            self._proc = None
 
     def stop(self) -> None:
         if self._proc is not None and self._proc.poll() is None:
