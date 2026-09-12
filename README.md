@@ -20,11 +20,15 @@ Spotify Connect + web UI stack on top.
 - [x] Spotify Connect backend (`daemon/spotify.py`, via `librespot`).
 - [x] Web UI (`webui/`, Flask) for source/station/volume control.
 - [x] systemd unit + Raspberry Pi OS setup script (`scripts/setup_pi.sh`).
-- [x] **Verified against real hardware** (a real MYND + MYNDberry board): the
-      Actionslink UART link (framing, handshake, live button/event traffic)
-      and the I2S audio path (`dtoverlay=hifiberry-dac`, confirmed audible
-      output) both work end-to-end. Full daemon + web UI install against
-      real hardware still pending — see "First run on real hardware".
+- [x] **Verified against real hardware** (a real MYND + MYNDberry board):
+      the Actionslink UART link (framing, handshake, live button/event
+      traffic), the I2S audio path (`dtoverlay=hifiberry-dac`, audible
+      output), and the full daemon + web UI running as a systemd service
+      (orchestrator handshake with the MCU, station playback, software
+      volume control all confirmed working end-to-end) — see "First run on
+      real hardware" for the exact steps and what's still open (mainly:
+      `librespot` isn't installed on the test unit yet, so Spotify Connect
+      itself is untested, though the daemon correctly runs without it).
 
 ## Why not moOde?
 
@@ -221,9 +225,10 @@ Then open `http://localhost:8080/`.
 
 ## First run on real hardware
 
-Confirmed against a real MYND + MYNDberry board (Pi Zero 2 W): the physical
-assembly, UART link, and I2S audio path all work as described below. The
-full daemon/web UI install is the remaining untested step.
+Confirmed against a real MYND + MYNDberry board (Pi Zero 2 W), start to
+finish: physical assembly, UART link, I2S audio path, and the full daemon +
+web UI running as a systemd service (MCU handshake, station playback,
+software volume control) all work as described below.
 
 1. Follow the [MYNDberry blog post](https://blog.teufelaudio.com/project-myndberry/)
    (or the more detailed [official wiki guide](https://github.com/teufelaudio/mynd-firmware/wiki/MYNDberry_initial_setup))
@@ -262,13 +267,37 @@ full daemon/web UI install is the remaining untested step.
    the script's output for options) if you want Spotify Connect from boot.
 6. `sudo systemctl start myndless`, then watch `journalctl -u myndless -f`
    while pressing physical buttons/knobs on the speaker to confirm
-   Actionslink requests are arriving and being answered.
+   Actionslink requests are arriving and being answered. Open
+   `http://<pi-hostname-or-ip>:8080/` for the web UI - picking a station
+   there and adjusting the volume slider both take effect immediately on a
+   confirmed-working install.
+
+### Gotchas hit during real bring-up (already fixed, worth knowing about)
+
+- If `journalctl -u myndless` shows the service restarting every few
+  seconds with a traceback, and `librespot` isn't installed: that's
+  already handled (`daemon/spotify.py` logs a warning and skips Spotify
+  Connect instead of crashing) as long as you're on a build that includes
+  that fix - `git pull` and restart if you hit it.
+- If volume control silently does nothing (`{"percent": 0}` from
+  `/api/volume`, or a "no ALSA mixer control found" warning in the logs)
+  right after a crash-loop like the one above: it was a transient
+  side-effect of the rapid restart cycle in this project's own testing,
+  not a real config problem - it resolved on its own once the crash loop
+  stopped. If it persists on a clean boot, compare `sudo -u myndless
+  amixer -c 0 scontrols` (should print `Simple mixer control 'PCM',0`)
+  against what the service sees in its logs (now logs amixer's exit
+  code/stdout/stderr on failure - see `daemon/audio.py`).
 
 Still open:
+- `librespot` isn't installed on the test unit - Spotify Connect itself
+  (as opposed to "the daemon runs fine without it") hasn't been exercised
+  on real hardware yet.
 - Whether `set_audio_source`/analog-source handling needs real behavior
   (right now it's acked as a no-op - see the docstring in
   `daemon/orchestrator.py`).
 - Sound icon playback (`play_sound_icon`/`stop_sound_icon`) needs actual
   `.wav` files dropped into `assets/sound_icons/` - none are bundled.
-- The full daemon (radio/Spotify backends + web UI, not just the raw
-  protocol link) hasn't run against real hardware yet.
+- Physical button routing (play/pause/next/prev via `send_avrcp_action`/
+  `send_usb_hid_action`) is implemented but not yet exercised on real
+  hardware.
