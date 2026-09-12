@@ -35,7 +35,7 @@ def build_orchestrator() -> Orchestrator:
     spotify = SpotifyBackend(
         device_name=CONFIG.librespot_device_name,
         librespot_bin=CONFIG.librespot_bin,
-        alsa_device=CONFIG.alsa_card,
+        alsa_device=CONFIG.alsa_pcm_device,
         onevent_script_path=onevent_script,
     )
 

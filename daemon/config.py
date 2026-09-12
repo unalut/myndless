@@ -24,8 +24,16 @@ class Config:
     serial_baudrate: int = _env_int("MYNDLESS_SERIAL_BAUDRATE", 115200)
 
     # ALSA
-    alsa_card: str = os.environ.get("MYNDLESS_ALSA_CARD", "default")
+    # "0" is a card *index*, not the "default" PCM/ctl alias - amixer's -c
+    # flag wants a number (or exact card short-id); "default" doesn't
+    # reliably resolve there. Confirmed against real MYNDberry hardware:
+    # dtoverlay=hifiberry-dac always enumerates as card 0.
+    alsa_card: str = os.environ.get("MYNDLESS_ALSA_CARD", "0")
     alsa_mixer: str = os.environ.get("MYNDLESS_ALSA_MIXER", "")  # "" = auto-detect
+    # Separate from alsa_card on purpose: this is the PCM *device name* mpv/
+    # librespot output to (routed through the softvol wrapper in
+    # /etc/asound.conf - see scripts/setup_pi.sh), not the amixer card index.
+    alsa_pcm_device: str = os.environ.get("MYNDLESS_ALSA_PCM_DEVICE", "default")
     volume_step_percent: int = _env_int("MYNDLESS_VOLUME_STEP", 5)
 
     # Radio

@@ -14,7 +14,8 @@ RestartSec=2
 
 # Environment (see daemon/config.py for the full list and defaults).
 Environment=MYNDLESS_SERIAL_PORT=/dev/serial0
-Environment=MYNDLESS_ALSA_CARD=default
+Environment=MYNDLESS_ALSA_CARD=0
+Environment=MYNDLESS_ALSA_PCM_DEVICE=default
 Environment=MYNDLESS_WEB_HOST=0.0.0.0
 Environment=MYNDLESS_WEB_PORT=8080
 
