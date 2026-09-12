@@ -1,3 +1,5 @@
+<img src="webui/static/logo.svg" alt="myndless" height="56">
+
 # myndless
 
 A from-scratch Pi-side replacement for moOde on a [MYNDberry](https://blog.teufelaudio.com/project-myndberry/)
