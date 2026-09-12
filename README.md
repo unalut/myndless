@@ -3,7 +3,8 @@
 A from-scratch Pi-side replacement for moOde on a [MYNDberry](https://blog.teufelaudio.com/project-myndberry/)
 mod (Teufel MYND speaker + Raspberry Pi Zero 2 W). Instead of moOde + the
 closed-source "RpiLink" daemon, this talks the MYND's real, open-source
-**Actionslink** protocol directly.
+**Actionslink** protocol directly, and runs its own internet radio + Spotify
+Connect + web UI stack on top.
 
 ## Status
 
@@ -11,14 +12,21 @@ closed-source "RpiLink" daemon, this talks the MYND's real, open-source
       firmware (framing, CRC, message schema) — see "Protocol notes" below.
 - [x] `myndlink`: a Python implementation of the Pi-side ("BT chip" role) of
       Actionslink — HDLC framing, CRC-8, request/response/event dispatch.
-      Verified end-to-end against a simulated MCU over a pty
-      (`tests/test_client_loopback.py`).
-- [ ] Orchestrator daemon tying `myndlink` events to audio backends (power,
-      volume, source switching, LED/UI sync).
-- [ ] Internet radio backend.
-- [ ] Spotify Connect backend (librespot).
-- [ ] Web UI.
-- [ ] systemd units + Raspberry Pi OS setup script.
+      Verified end-to-end against a simulated MCU over a pty.
+- [x] `daemon/orchestrator.py`: wires Actionslink events/requests to real
+      audio backends (power, volume, source switching, sound icons, LED
+      queries) and stubs out the Bluetooth-management requests we don't
+      implement so the MCU is never left hanging.
+- [x] Internet radio backend (`daemon/radio.py`, via `mpv`).
+- [x] Spotify Connect backend (`daemon/spotify.py`, via `librespot`).
+- [x] Web UI (`webui/`, Flask) for source/station/volume control.
+- [x] systemd unit + Raspberry Pi OS setup script (`scripts/setup_pi.sh`).
+- [ ] **Run against real hardware.** Everything above is built and tested
+      against a simulated MCU (pty) and mocked subprocesses/ALSA - it has not
+      yet been wired up to an actual MYND + MYNDberry board. Expect to spend
+      time here: confirming the UART pinout against the physical adapter PCB,
+      finding the real ALSA mixer control name for whatever DAC the board
+      uses, etc. See "First run on real hardware" below.
 
 ## Why not moOde?
 
@@ -33,23 +41,33 @@ on top of it.
 ## Architecture
 
 ```
-┌─────────────────────────┐        UART (115200 8N1)        ┌───────────────────────────┐
-│   MYND main MCU          │◄───────────────────────────────►│  Raspberry Pi Zero 2 W     │
-│   (STM32, mynd-firmware) │   Actionslink protocol           │  (this project)           │
-│                          │   over what used to be the        │                           │
-│  owns: amp, battery,      │   Bluetooth module's UART pins   │  myndlink/  - protocol lib │
-│  buttons, LEDs, power     │                                  │  daemon/    - orchestrator │
-└─────────────────────────┘                                  │  services/  - radio/spotify│
-                                                               │  webui/     - control UI   │
-                                                               └───────────────────────────┘
+┌──────────────────────────┐        UART (115200 8N1)         ┌────────────────────────────┐
+│   MYND main MCU           │◄────────────────────────────────►│  Raspberry Pi Zero 2 W      │
+│   (STM32, mynd-firmware)  │      Actionslink protocol         │  (this project)            │
+│                           │   over what used to be the        │                            │
+│   owns: amp, battery,     │   Bluetooth module's UART pins    │  myndlink/ - protocol lib   │
+│   buttons, LEDs, power    │                                   │  daemon/   - orchestrator + │
+└──────────────────────────┘                                   │             audio backends  │
+                                                                 │  webui/    - Flask control  │
+        ALSA (shared output) ◄───────────────┬────────────────►│             UI + API        │
+                     ▲                        │                 └────────────────────────────┘
+                     │                        │
+              mpv (internet radio)     librespot (Spotify Connect)
 ```
 
-The Pi's role in this protocol is exactly the role the original Bluetooth/
-Actions co-processor used to play: it receives commands from the MCU
-(`set_audio_source`, `set_volume`, `set_power_state`, `play_sound_icon`, ...)
-and must acknowledge/respond to them, and it can also push events/requests of
-its own to the MCU (`notify_system_ready`, `notify_power_state`,
-`notify_volume`, LED color/brightness control, battery status, ...).
+The Pi's role in the Actionslink protocol is exactly the role the original
+Bluetooth/Actions co-processor used to play: it receives commands from the
+MCU (`set_audio_source`, `set_volume`, `set_power_state`, `play_sound_icon`,
+transport controls, ...) and must acknowledge/respond to them, and it can
+also push events/requests of its own to the MCU (`notify_system_ready`,
+`notify_power_state`, `notify_volume`, `notify_stream_state`, LED
+color/brightness queries, battery status, ...). `daemon/orchestrator.py` is
+where that's implemented, on top of `myndlink`'s protocol library.
+
+Only one of {radio, spotify} is ever meant to be actually producing sound at
+a time: starting radio force-stops `librespot` (there's no local way to
+"pause" a remote Spotify Connect session), and Spotify becoming active (via
+its `--onevent` hook) stops radio.
 
 ## Protocol notes (Actionslink)
 
@@ -77,7 +95,7 @@ Reverse engineered from
 `myndlink/proto/`): bytes the MCU sends are always an `ActionsLink.FromMcu`
 message; bytes we send are always `ActionsLink.ToMcu`. See that file for the
 full message catalogue (power, audio source/volume, BT-emulation fields we
-can ignore, USB HID, LED color/brightness, battery, generic app passthrough).
+stub out, USB HID, LED color/brightness, battery, generic app passthrough).
 
 **Hardware** — `reference/mynd-hardware/MYNDberry/` (KiCad): the MYNDberry
 adapter PCB breaks out the Pi's 40-pin header to the MYND's original
@@ -94,9 +112,24 @@ myndlink/            Actionslink protocol library
   crc8.py             CRC-8 implementation
   hdlc.py             HDLC framing (encode + incremental parser)
   client.py           ActionslinkClient: transport + dispatch + convenience API
-tests/
-  test_client_loopback.py   full protocol round-trip against a simulated MCU (no hardware needed)
-reference/            vendored upstream repos for protocol/hardware reference
+daemon/
+  config.py           env-var-driven configuration
+  audio.py            ALSA volume control (shells out to amixer)
+  radio.py            internet radio playback via mpv + its JSON IPC socket
+  spotify.py          Spotify Connect via librespot (process mgmt + onevent hook)
+  orchestrator.py     wires myndlink <-> audio backends; the real protocol handlers
+  main.py             process entrypoint (python -m daemon.main)
+  stations.json       default internet radio station list
+webui/
+  app.py              Flask app: status/radio/volume/spotify API + onevent receiver
+  templates/index.html  control page
+systemd/
+  myndless.service    systemd unit for the setup script
+scripts/
+  setup_pi.sh          Raspberry Pi OS setup (UART, packages, venv, service)
+  gen_proto.sh         regenerate myndlink/pb/*_pb2.py from myndlink/proto/*.proto
+tests/                unit + integration tests, all runnable without real hardware
+reference/            vendored upstream repos for protocol/hardware reference (gitignored)
   mynd-firmware/       github.com/teufelaudio/mynd-firmware
   mynd-hardware/        github.com/teufelaudio/mynd-hardware
 ```
@@ -114,17 +147,38 @@ cd mynd-firmware
 git submodule update --init --depth 1 Projects/Mynd/external/thirdparty/nanopb
 ```
 
-## Using `myndlink`
+## Development setup
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements-dev.txt   # adds grpcio-tools (proto codegen) + pyflakes
+```
+
+Run the tests (no hardware, no mpv/librespot/ALSA required - everything's
+mocked or run against a simulated MCU over a pty):
+
+```bash
+source .venv/bin/activate
+for f in tests/test_*.py; do python "$f" || break; done
+```
+
+Regenerate the protobuf bindings after touching `myndlink/proto/`:
+
+```bash
+bash scripts/gen_proto.sh
+```
+
+## Using `myndlink` directly
 
 ```python
 from myndlink.client import ActionslinkClient
-import system_pb2, audio_pb2  # from myndlink/pb, already on sys.path via client.py
+import system_pb2  # from myndlink/pb, already on sys.path via client.py
 
 client = ActionslinkClient("/dev/serial0")
 
 def handle_set_audio_source(source, seq):
     print("MCU wants source", source.source)
-    # ... actually switch ALSA routing/whatever here ...
     import common_pb2, error_pb2
     result = common_pb2.Result()
     result.status.code = error_pb2.Code.Success
@@ -136,33 +190,49 @@ client.notify_system_ready()
 client.notify_power_state(system_pb2.PowerState.ON)
 ```
 
-Run the no-hardware-required protocol test with:
+`daemon/orchestrator.py` is the fuller, real implementation of this pattern -
+start there if you're extending protocol handling.
+
+## Running it (dev machine, no MYND attached)
+
+You can run the whole stack without hardware to poke at the web UI - the
+Actionslink client will just fail to open `/dev/serial0` unless you point it
+at a pty (see `tests/test_orchestrator.py` for how the tests fake one up).
+For a real dry run you need at least a Pi (or any Linux box) with a serial
+port, `mpv`, and optionally `librespot` installed:
 
 ```bash
-source .venv/bin/activate
-python tests/test_client_loopback.py
+pip install -r requirements.txt
+export MYNDLESS_SERIAL_PORT=/dev/ttyUSB0   # or wherever
+python -m daemon.main
 ```
 
-## Regenerating the protobuf bindings
+Then open `http://localhost:8080/`.
 
-```bash
-source .venv/bin/activate
-bash scripts/gen_proto.sh
-```
+## First run on real hardware
 
-## Next steps
+1. Follow the [MYNDberry blog post](https://blog.teufelaudio.com/project-myndberry/)
+   for the physical mod (adapter PCB install) - that part is unchanged.
+2. Flash **Raspberry Pi OS Lite** (not moOde) to the SD card.
+3. Clone this repo onto the Pi and run `bash scripts/setup_pi.sh` - it
+   enables the hardware UART, disables the serial console, installs system
+   packages, and sets up the systemd service. Install `librespot` first (see
+   the script's output for options) if you want Spotify Connect from boot.
+4. `sudo reboot`, then `sudo systemctl start myndless`.
+5. Find the real ALSA mixer control name for your DAC (`amixer scontrols`)
+   and set `MYNDLESS_ALSA_MIXER` in `systemd/myndless.service` if
+   auto-detection (`daemon/audio.py`) doesn't pick the right one.
+6. Watch `journalctl -u myndless -f` while triggering physical buttons/knobs
+   on the speaker to confirm Actionslink requests are arriving and being
+   answered.
 
-1. **Orchestrator daemon** (`daemon/`): wires `ActionslinkClient` events to
-   real system state — power on/off (suspend/shutdown the Pi or just mute),
-   volume (ALSA mixer), audio source switching, LED sync.
-2. **Audio backends**: internet radio (MPD or a direct ffmpeg/gstreamer
-   pipeline) and Spotify Connect (`librespot`), both routed to the same ALSA
-   output feeding the MYND's amp over I2S.
-3. **Web UI** (`webui/`): Flask app for source/station/volume control.
-4. **Deployment**: Raspberry Pi OS Lite (not moOde) + systemd units +
-   `raspi-config` UART setup (enable hardware UART, disable serial console)
-   + setup script.
-
-Before wiring up real hardware: verify the UART pinout against the physical
-MYNDberry board/schematic (`reference/mynd-hardware/MYNDberry/MYNDberry.kicad_sch`)
-rather than assuming — this project has not yet been run against a real MYND.
+Things worth double-checking against the physical board rather than
+assuming, since none of this has touched real hardware yet:
+- The UART pinout (`reference/hardware/MYNDberry/MYNDberry.kicad_sch`) -
+  confirm it's wired to the Pi's primary UART and not, say, the
+  Bluetooth-shared mini-UART.
+- Whether `set_audio_source`/analog-source handling needs real behavior
+  (right now it's acked as a no-op - see the docstring in
+  `daemon/orchestrator.py`).
+- Sound icon playback (`play_sound_icon`/`stop_sound_icon`) needs actual
+  `.wav` files dropped into `assets/sound_icons/` - none are bundled.

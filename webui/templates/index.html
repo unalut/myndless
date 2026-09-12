@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>myndless</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f5f5f7;
+    --card: #ffffff;
+    --text: #1c1c1e;
+    --muted: #6e6e73;
+    --accent: #0a84ff;
+    --border: #e5e5ea;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #000000;
+      --card: #1c1c1e;
+      --text: #f5f5f7;
+      --muted: #8e8e93;
+      --border: #2c2c2e;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    padding: 24px 16px 64px;
+  }
+  .wrap { max-width: 480px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .subtitle { color: var(--muted); font-size: 14px; margin-bottom: 24px; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px;
+    margin-bottom: 16px;
+  }
+  .card h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin: 0 0 12px; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .source-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 600;
+    background: var(--accent);
+    color: white;
+  }
+  .source-badge.none { background: var(--border); color: var(--muted); }
+  button {
+    font: inherit;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 14px;
+    cursor: pointer;
+    background: var(--accent);
+    color: white;
+  }
+  button.secondary { background: var(--border); color: var(--text); }
+  button:active { opacity: 0.7; }
+  .station-list { display: flex; flex-direction: column; gap: 8px; }
+  .station {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+  }
+  .station.playing { border-color: var(--accent); }
+  .volume-row { display: flex; align-items: center; gap: 12px; }
+  input[type=range] { flex: 1; }
+  #volumeValue { min-width: 3ch; text-align: right; font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>myndless</h1>
+  <div class="subtitle">MYNDberry, without moOde.</div>
+
+  <div class="card">
+    <h2>Now playing</h2>
+    <div class="row">
+      <span id="sourceBadge" class="source-badge none">idle</span>
+      <button class="secondary" onclick="stopRadio()">Stop</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Volume</h2>
+    <div class="volume-row">
+      <input type="range" id="volumeSlider" min="0" max="100" value="50"
+             oninput="document.getElementById('volumeValue').textContent = this.value + '%'"
+             onchange="setVolume(this.value)">
+      <span id="volumeValue">50%</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Internet radio</h2>
+    <div id="stationList" class="station-list"></div>
+  </div>
+
+  <div class="card">
+    <h2>Spotify Connect</h2>
+    <div class="row">
+      <span class="subtitle" style="margin:0">Pick "myndless" in any Spotify app to switch here.</span>
+      <button class="secondary" onclick="activateSpotify()">Activate</button>
+    </div>
+  </div>
+</div>
+
+<script>
+async function api(path, opts) {
+  const res = await fetch(path, opts);
+  if (!res.ok) throw new Error(await res.text());
+  return res.status === 204 ? null : res.json();
+}
+
+async function refreshStatus() {
+  const status = await api('/api/status');
+  const badge = document.getElementById('sourceBadge');
+  if (status.active_source === 'radio' && status.current_station) {
+    badge.textContent = 'Radio: ' + status.current_station.name;
+    badge.className = 'source-badge';
+  } else if (status.active_source === 'spotify') {
+    badge.textContent = 'Spotify Connect';
+    badge.className = 'source-badge';
+  } else {
+    badge.textContent = 'idle';
+    badge.className = 'source-badge none';
+  }
+
+  const slider = document.getElementById('volumeSlider');
+  if (document.activeElement !== slider) {
+    slider.value = status.volume_percent;
+    document.getElementById('volumeValue').textContent = status.volume_percent + '%';
+  }
+
+  document.querySelectorAll('.station').forEach(el => {
+    el.classList.toggle('playing', status.current_station && el.dataset.id === status.current_station.id);
+  });
+}
+
+async function loadStations() {
+  const stations = await api('/api/radio/stations');
+  const list = document.getElementById('stationList');
+  list.innerHTML = '';
+  for (const station of stations) {
+    const row = document.createElement('div');
+    row.className = 'station';
+    row.dataset.id = station.id;
+    row.innerHTML = `<span>${station.name}</span>`;
+    const playBtn = document.createElement('button');
+    playBtn.textContent = 'Play';
+    playBtn.onclick = () => playStation(station.id);
+    row.appendChild(playBtn);
+    list.appendChild(row);
+  }
+}
+
+function playStation(id) { api(`/api/radio/play/${id}`, { method: 'POST' }).then(refreshStatus); }
+function stopRadio() { api('/api/radio/stop', { method: 'POST' }).then(refreshStatus); }
+function activateSpotify() { api('/api/spotify/activate', { method: 'POST' }).then(refreshStatus); }
+function setVolume(percent) {
+  api('/api/volume', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ percent: Number(percent) }),
+  }).then(refreshStatus);
+}
+
+loadStations();
+refreshStatus();
+setInterval(refreshStatus, 3000);
+</script>
+</body>
+</html>

@@ -144,7 +144,14 @@ class ActionslinkClient:
     def _reader_loop(self) -> None:
         while not self._stop.is_set():
             try:
-                chunk = self._serial.read(256)
+                # pyserial's read(n) waits (up to the port timeout) for *n*
+                # bytes to become available - asking for a big fixed size
+                # like 256 means every read costs a full timeout period
+                # whenever fewer bytes are sitting in the buffer, which is
+                # most of the time for these small frames. Read only what's
+                # already waiting (at least 1, to still block briefly when
+                # idle) so a frame is picked up as soon as it arrives.
+                chunk = self._serial.read(max(1, self._serial.in_waiting))
             except serial.SerialException:
                 log.exception("serial read failed")
                 time.sleep(0.5)
