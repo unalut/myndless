@@ -73,6 +73,19 @@
     border-radius: 10px;
     border: 1px solid var(--border);
   }
+  .station .meta { min-width: 0; }
+  .station .meta .name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .station .meta .detail { display: block; font-size: 12px; color: var(--muted); }
+  .search-row { display: flex; gap: 8px; margin-top: 14px; }
+  .search-row input[type=text] {
+    flex: 1;
+    font: inherit;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+  }
   .station.playing { border-color: var(--accent); }
   .volume-row { display: flex; align-items: center; gap: 12px; }
   input[type=range] { flex: 1; }
@@ -105,6 +118,14 @@
   <div class="card">
     <h2>Internet radio</h2>
     <div id="stationList" class="station-list"></div>
+
+    <div class="search-row">
+      <input type="text" id="stationSearchInput" placeholder="Find a station to add (e.g. jazz, BBC, NPR)…"
+             onkeydown="if (event.key === 'Enter') searchStations()">
+      <button class="secondary" onclick="searchStations()">Search</button>
+    </div>
+    <div id="searchStatus" class="subtitle" style="margin:8px 0 0"></div>
+    <div id="searchResults" class="station-list" style="margin-top:8px"></div>
   </div>
 
   <div class="card">
@@ -174,6 +195,77 @@ function setVolume(percent) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ percent: Number(percent) }),
   }).then(refreshStatus);
+}
+
+let searchToken = 0;
+
+async function searchStations() {
+  const query = document.getElementById('stationSearchInput').value.trim();
+  const statusEl = document.getElementById('searchStatus');
+  const resultsEl = document.getElementById('searchResults');
+  if (!query) {
+    statusEl.textContent = '';
+    resultsEl.innerHTML = '';
+    return;
+  }
+
+  const token = ++searchToken;
+  statusEl.textContent = 'Searching Radio Browser…';
+  resultsEl.innerHTML = '';
+
+  let results;
+  try {
+    results = await api(`/api/radio/search?q=${encodeURIComponent(query)}`);
+  } catch (err) {
+    if (token === searchToken) statusEl.textContent = 'Search failed - try again.';
+    return;
+  }
+  if (token !== searchToken) return; // a newer search superseded this one
+
+  if (results.length === 0) {
+    statusEl.textContent = 'No stations found.';
+    return;
+  }
+  statusEl.textContent = `${results.length} result${results.length === 1 ? '' : 's'}:`;
+
+  for (const result of results) {
+    const row = document.createElement('div');
+    row.className = 'station';
+    const meta = document.createElement('div');
+    meta.className = 'meta';
+    const detail = [result.country, result.bitrate ? `${result.bitrate}kbps` : ''].filter(Boolean).join(' · ');
+    meta.innerHTML = `<span class="name">${result.name}</span><span class="detail">${detail}</span>`;
+    row.appendChild(meta);
+
+    const addBtn = document.createElement('button');
+    addBtn.className = 'secondary';
+    addBtn.textContent = '+ Add';
+    addBtn.onclick = () => addStation(result, addBtn);
+    row.appendChild(addBtn);
+
+    resultsEl.appendChild(row);
+  }
+}
+
+async function addStation(result, buttonEl) {
+  buttonEl.disabled = true;
+  buttonEl.textContent = 'Adding…';
+  try {
+    await api('/api/radio/stations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: result.stationuuid ? `rb-${result.stationuuid}` : undefined,
+        name: result.name,
+        url: result.url,
+      }),
+    });
+    buttonEl.textContent = 'Added ✓';
+    await loadStations();
+  } catch (err) {
+    buttonEl.disabled = false;
+    buttonEl.textContent = '+ Add';
+  }
 }
 
 loadStations();

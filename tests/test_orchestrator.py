@@ -60,6 +60,9 @@ class FakeRadio:
     def list_stations(self):
         return list(self._stations.values())
 
+    def add_station(self, station):
+        self._stations[station.id] = station
+
     def play(self, station_id):
         station = self._stations[station_id]
         self.playing_station = station_id
@@ -350,6 +353,88 @@ def test_spotify_event_stops_radio_and_becomes_active_source():
     finally:
         orch.stop()
         mcu.close()
+
+
+class InertFakeClient:
+    """A no-op ActionslinkClient stand-in for tests that don't touch the MCU
+    side at all (pure orchestrator logic like adding/searching stations)."""
+
+    def start(self): pass
+    def stop(self): pass
+    def on_request(self, *a, **k): pass
+    def on_event(self, *a, **k): pass
+    def notify_system_ready(self): pass
+    def notify_power_state(self, *a, **k): pass
+    def notify_stream_state(self, *a, **k): pass
+    def notify_volume_percent(self, *a, **k): pass
+
+
+def make_inert_orchestrator(config=None):
+    audio, radio, spotify = FakeAudio(), FakeRadio(), FakeSpotify()
+    orch = Orchestrator(InertFakeClient(), audio, radio, spotify, config or Config())
+    return orch, audio, radio, spotify
+
+
+def test_search_radio_stations_delegates_to_radio_browser():
+    import daemon.orchestrator as orchestrator_module
+
+    calls = []
+
+    def fake_search(query):
+        calls.append(query)
+        return [{"name": "Fake Station", "url": "http://example.com/x", "stationuuid": "u1"}]
+
+    original = orchestrator_module.radio_browser.search_stations
+    orchestrator_module.radio_browser.search_stations = fake_search
+    try:
+        orch, *_ = make_inert_orchestrator()
+        results = orch.search_radio_stations("jazz")
+        assert calls == ["jazz"]
+        assert results[0]["name"] == "Fake Station"
+    finally:
+        orchestrator_module.radio_browser.search_stations = original
+
+
+def test_add_radio_station_persists_and_is_immediately_playable(tmp_path=None):
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as d:
+        stations_path = f"{d}/stations.json"
+        config = Config(radio_stations_file=stations_path)
+        orch, audio, radio, spotify = make_inert_orchestrator(config)
+
+        station = orch.add_radio_station("My New Station", "http://example.com/stream", station_id="rb-abc123")
+        assert station.id == "rb-abc123"
+        assert any(s.id == "rb-abc123" for s in radio.list_stations())
+
+        from daemon.radio import load_stations
+
+        reloaded = load_stations(stations_path)
+        assert any(s.id == "rb-abc123" and s.url == "http://example.com/stream" for s in reloaded)
+
+
+def test_add_radio_station_generates_slug_id_when_none_given(tmp_path=None):
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as d:
+        config = Config(radio_stations_file=f"{d}/stations.json")
+        orch, *_ = make_inert_orchestrator(config)
+
+        station = orch.add_radio_station("Jazz FM!", "http://example.com/jazz")
+        assert station.id == "jazz-fm"
+
+
+def test_add_radio_station_dedupes_generated_ids(tmp_path=None):
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as d:
+        config = Config(radio_stations_file=f"{d}/stations.json")
+        orch, *_ = make_inert_orchestrator(config)
+
+        first = orch.add_radio_station("Jazz FM", "http://example.com/a")
+        second = orch.add_radio_station("Jazz FM", "http://example.com/b")
+        assert first.id != second.id
+        assert second.id == "jazz-fm-2"
 
 
 if __name__ == "__main__":

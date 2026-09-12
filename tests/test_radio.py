@@ -3,7 +3,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from daemon.radio import RadioPlayer, Station, load_stations  # noqa: E402
+from daemon.radio import RadioPlayer, Station, load_stations, save_stations  # noqa: E402
 
 
 class FakeProcess:
@@ -97,6 +97,26 @@ def test_load_stations_from_real_file():
     stations = load_stations(str(Path(__file__).parent.parent / "daemon" / "stations.json"))
     assert len(stations) >= 1
     assert all(isinstance(s, Station) for s in stations)
+
+
+def test_add_station_makes_it_immediately_playable():
+    player = RadioPlayer(STATIONS, spawner=FakeSpawner())
+    player.add_station(Station(id="new-one", name="New One", url="http://example.com/new"))
+    ids = [s.id for s in player.list_stations()]
+    assert "new-one" in ids
+    player.play("new-one")  # doesn't raise KeyError
+    assert player.current_station.id == "new-one"
+
+
+def test_save_and_reload_stations_round_trips(tmp_path=None):
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as d:
+        path = f"{d}/stations.json"
+        save_stations(path, STATIONS)
+        reloaded = load_stations(path)
+        assert [s.id for s in reloaded] == [s.id for s in STATIONS]
+        assert [s.url for s in reloaded] == [s.url for s in STATIONS]
 
 
 if __name__ == "__main__":

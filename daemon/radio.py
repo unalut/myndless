@@ -38,6 +38,14 @@ def load_stations(path: str) -> list[Station]:
     return [Station(id=item["id"], name=item["name"], url=item["url"]) for item in raw]
 
 
+def save_stations(path: str, stations: list[Station]) -> None:
+    """Persist the station list back to disk (same shape load_stations reads),
+    so stations added at runtime (e.g. via the web UI's Radio Browser search)
+    survive a restart."""
+    data = [{"id": s.id, "name": s.name, "url": s.url} for s in stations]
+    Path(path).write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+
+
 class RadioPlayer:
     def __init__(
         self,
@@ -57,6 +65,9 @@ class RadioPlayer:
 
     def list_stations(self) -> list[Station]:
         return list(self._stations.values())
+
+    def add_station(self, station: Station) -> None:
+        self._stations[station.id] = station
 
     @property
     def current_station(self) -> Optional[Station]:

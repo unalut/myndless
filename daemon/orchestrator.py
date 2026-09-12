@@ -24,6 +24,7 @@ Design choices worth calling out:
 from __future__ import annotations
 
 import logging
+import re
 import subprocess
 from pathlib import Path
 from typing import Optional
@@ -39,7 +40,8 @@ import usb_pb2
 
 from .audio import AudioBackend
 from .config import Config
-from .radio import RadioPlayer
+from . import radio_browser
+from .radio import RadioPlayer, Station, save_stations
 from .spotify import SpotifyBackend
 
 log = logging.getLogger("myndless.orchestrator")
@@ -107,6 +109,30 @@ class Orchestrator:
         self.radio.stop()
         if self.active_source == "radio":
             self._set_active_source(None)
+
+    def search_radio_stations(self, query: str) -> list[dict]:
+        return radio_browser.search_stations(query)
+
+    def add_radio_station(self, name: str, url: str, station_id: Optional[str] = None) -> Station:
+        """Add a station (from a Radio Browser search result, or typed in by
+        hand) and persist it to disk so it survives a restart."""
+        station = Station(id=station_id or self._unique_station_id(name), name=name, url=url)
+        self.radio.add_station(station)
+        try:
+            save_stations(self.config.radio_stations_file, self.radio.list_stations())
+        except OSError:
+            log.exception("failed to persist stations to %s - station added for this run only", self.config.radio_stations_file)
+        return station
+
+    def _unique_station_id(self, name: str) -> str:
+        base = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "station"
+        existing = {s.id for s in self.radio.list_stations()}
+        candidate = base
+        suffix = 2
+        while candidate in existing:
+            candidate = f"{base}-{suffix}"
+            suffix += 1
+        return candidate
 
     def switch_to_spotify(self) -> None:
         self.radio.stop()

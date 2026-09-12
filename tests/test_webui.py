@@ -24,13 +24,19 @@ class FakeClient:
 
 
 def make_client():
+    import tempfile
+
     from daemon.orchestrator import Orchestrator
 
     audio, radio_backend, spotify = FakeAudio(), FakeRadio(), FakeSpotify()
     radio_backend._stations = {
         "a": Station(id="a", name="Station A", url="http://example.com/a"),
     }
-    orch = Orchestrator(FakeClient(), audio, radio_backend, spotify, Config())
+    # A scratch stations file, not the real daemon/stations.json - add_radio_station
+    # persists to disk, and tests must not clobber the repo's real station list.
+    stations_path = f"{tempfile.mkdtemp()}/stations.json"
+    config = Config(radio_stations_file=stations_path)
+    orch = Orchestrator(FakeClient(), audio, radio_backend, spotify, config)
     app = create_app(orch)
     app.testing = True
     return app.test_client(), orch
@@ -114,6 +120,41 @@ def test_index_page_renders():
     resp = client.get("/")
     assert resp.status_code == 200
     assert b"myndless" in resp.data
+
+
+def test_search_stations_endpoint():
+    import daemon.orchestrator as orchestrator_module
+
+    original = orchestrator_module.radio_browser.search_stations
+    orchestrator_module.radio_browser.search_stations = lambda q: [{"name": f"Result for {q}", "url": "http://x", "stationuuid": "u1"}]
+    try:
+        client, orch = make_client()
+        resp = client.get("/api/radio/search?q=jazz")
+        assert resp.status_code == 200
+        body = resp.get_json()
+        assert body[0]["name"] == "Result for jazz"
+    finally:
+        orchestrator_module.radio_browser.search_stations = original
+
+
+def test_add_station_endpoint_then_playable():
+    client, orch = make_client()
+    resp = client.post("/api/radio/stations", json={"name": "New Station", "url": "http://example.com/new"})
+    assert resp.status_code == 201
+    body = resp.get_json()
+    assert body["id"] == "new-station"
+
+    stations = client.get("/api/radio/stations").get_json()
+    assert any(s["id"] == "new-station" for s in stations)
+
+    play_resp = client.post("/api/radio/play/new-station")
+    assert play_resp.status_code == 200
+
+
+def test_add_station_endpoint_rejects_missing_fields():
+    client, orch = make_client()
+    resp = client.post("/api/radio/stations", json={"name": "No URL"})
+    assert resp.status_code == 400
 
 
 if __name__ == "__main__":

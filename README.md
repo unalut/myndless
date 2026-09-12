@@ -18,7 +18,9 @@ Spotify Connect + web UI stack on top.
       implement so the MCU is never left hanging.
 - [x] Internet radio backend (`daemon/radio.py`, via `mpv`).
 - [x] Spotify Connect backend (`daemon/spotify.py`, via `librespot`).
-- [x] Web UI (`webui/`, Flask) for source/station/volume control.
+- [x] Web UI (`webui/`, Flask) for source/station/volume control, plus
+      searching [Radio Browser](https://www.radio-browser.info/) to add new
+      internet radio stations on the fly (persisted to `stations.json`).
 - [x] systemd unit + Raspberry Pi OS setup script (`scripts/setup_pi.sh`).
 - [x] **Verified against real hardware** (a real MYND + MYNDberry board):
       the Actionslink UART link (framing, handshake, live button/event
@@ -125,6 +127,7 @@ daemon/
   config.py           env-var-driven configuration
   audio.py            ALSA volume control (shells out to amixer)
   radio.py            internet radio playback via mpv + its JSON IPC socket
+  radio_browser.py    Radio Browser API client (station search, used by the web UI)
   spotify.py          Spotify Connect via librespot (process mgmt + onevent hook)
   orchestrator.py     wires myndlink <-> audio backends; the real protocol handlers
   main.py             process entrypoint (python -m daemon.main)

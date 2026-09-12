@@ -41,6 +41,21 @@ def create_app(orch: Orchestrator) -> Flask:
     def list_stations():
         return jsonify([{"id": s.id, "name": s.name} for s in orch.radio.list_stations()])
 
+    @app.get("/api/radio/search")
+    def search_stations():
+        query = request.args.get("q", "")
+        return jsonify(orch.search_radio_stations(query))
+
+    @app.post("/api/radio/stations")
+    def add_station():
+        data = request.get_json(force=True, silent=True) or {}
+        name = (data.get("name") or "").strip()
+        url = (data.get("url") or "").strip()
+        if not name or not url:
+            return jsonify({"error": "expected JSON body {'name': ..., 'url': ...}"}), 400
+        station = orch.add_radio_station(name, url, station_id=data.get("id") or None)
+        return jsonify({"id": station.id, "name": station.name}), 201
+
     @app.post("/api/radio/play/<station_id>")
     def play_station(station_id: str):
         try:
