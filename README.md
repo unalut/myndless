@@ -2,64 +2,50 @@
 
 # myndless
 
-A from-scratch Pi-side replacement for moOde on a [MYNDberry](https://blog.teufelaudio.com/project-myndberry/)
-mod (Teufel MYND speaker + Raspberry Pi Zero 2 W). Instead of moOde + the
-official "RpiLink" daemon, this talks the MYND's **Actionslink** protocol
-directly with its own implementation, and runs its own internet radio +
-Spotify Connect + web UI stack on top.
+A custom Raspberry Pi music hub for a [MYNDberry](https://blog.teufelaudio.com/project-myndberry/)-modified
+Teufel MYND speaker — internet radio and Spotify Connect, controlled from a
+web UI, talking to the speaker's MCU over its own open-source **Actionslink**
+protocol.
 
-## Status
+## Why this exists
 
-- [x] Actionslink protocol reverse engineered from the open-source MYND MCU
-      firmware (framing, CRC, message schema) — see "Protocol notes" below.
-- [x] `myndlink`: a Python implementation of the Pi-side ("BT chip" role) of
-      Actionslink — HDLC framing, CRC-8, request/response/event dispatch.
-- [x] `daemon/orchestrator.py`: wires Actionslink events/requests to real
-      audio backends (power, volume, source switching, sound icons, LED
-      queries) and stubs out the Bluetooth-management requests we don't
-      implement so the MCU is never left hanging.
-- [x] Internet radio backend (`daemon/radio.py`, via `mpv`).
-- [x] Spotify Connect backend (`daemon/spotify.py`, via `librespot`).
-- [x] Web UI (`webui/`, Flask) for source/station/volume control, plus
-      searching [Radio Browser](https://www.radio-browser.info/) to add new
-      internet radio stations on the fly (persisted to `stations.json`).
-- [x] systemd unit + Raspberry Pi OS setup script (`scripts/setup_pi.sh`).
-- [x] **Verified against real hardware** (a real MYND + MYNDberry board):
-      the Actionslink UART link (framing, handshake, live button/event
-      traffic), the I2S audio path (`dtoverlay=hifiberry-dac`, audible
-      output), the full daemon + web UI running as a systemd service
-      (orchestrator handshake with the MCU, station playback, software
-      volume control all confirmed working end-to-end), and now **Spotify
-      Connect itself**: `librespot` installed via the Raspotify project's
-      prebuilt binary (see `scripts/setup_pi.sh`), phone shows "myndless" as
-      a Connect target, audio plays through the MYND — see "First run on
-      real hardware" for the exact steps and what's still open.
+I have a MYNDberry-modded MYND, and it's genuinely a fantastic piece of kit.
+The fact that Teufel made it open source is exactly what gave me the
+confidence to dig in: I read through their repos to understand how the
+speaker and the Raspberry Pi actually talk to each other, then wiped the Pi
+completely, installed a plain Raspberry Pi OS Lite on it, and built my own
+setup on top of the hardware — just the features I actually wanted, nothing
+more. I did the whole thing with Claude Code, end to end, including tuning
+the web UI to exactly what I need it for: pulling it up in a browser at home
+to switch on Spotify or pick an internet radio station.
 
-## Why not moOde?
+There are still a few open ends — I haven't gotten the physical buttons on
+the speaker fully wired up yet, and that's something I'm actively still
+poking at. But being able to take an open-source device apart, actually
+understand it, and rebuild the software around it to fit exactly how I want
+to use it has been one of the most fun side projects I've done in a while.
+Big thanks to the Teufel team for making that possible.
 
-MYNDberry's official stack is moOde OS plus an "RpiLink" daemon - it turns
-out that *is* open source too (just easy to miss: it lives on the
-`MYNDberry` branch of [teufelaudio/mynd-firmware](https://github.com/teufelaudio/mynd-firmware),
-under `Projects/Mynd/src/tasks/rpi/daemon_install/`, not `main`). This
-project doesn't use it, though - partly because that was discovered only
-after already reimplementing the peer side from the protocol definitions
-directly, and partly because the goal here was a custom Pi-side application
-(different audio backends, own web UI) rather than moOde. The official
-daemon is still a genuinely useful reference if something here disagrees
-with it - see `reference/mynd-firmware` (branch `MYNDberry`) after running
-`git fetch origin MYNDberry && git checkout MYNDberry` in that clone.
+## What it does
 
-The protocol itself - **Actionslink** - is unambiguously open source either
-way, as part of the same repo. One wrinkle worth knowing about: the
-`MYNDberry` branch's MCU firmware also ships a *different*, RPi-specific
-protocol dialect (`Projects/Mynd/external/teufel/libs/actionslink/proto/rpi/`
-- `PlaybackAction`, `CycleSource`, host-source LED sync, even WiFi
-provisioning over Actionslink itself), separate from the generic
-`eco/message.proto` dialect this project implements and has verified
-against real hardware. That RPi dialect is presumably only spoken by MCU
-firmware actually built from the `MYNDberry` branch (flashed via the
-`myndberry-update-firmware-mcu.bin` release asset) - this project's test
-unit is still on whatever firmware it shipped with, speaking `eco`.
+- **Internet radio**, with search-and-add powered by
+  [Radio Browser](https://www.radio-browser.info/) right from the web UI.
+- **Spotify Connect** — the speaker shows up as a Connect target in any
+  Spotify app.
+- A small **web UI** (source/station/volume control) reachable from any
+  browser on the home network.
+- All of it driven by a from-scratch Python implementation of **Actionslink**,
+  the same protocol the speaker's MCU used to talk to its Bluetooth module —
+  the Pi now stands in for that role.
+
+Verified end to end on real hardware: the UART link to the MCU, I2S audio
+output to the speaker's amps, Spotify Connect, internet radio playback, and
+volume control from the web UI.
+
+Still being worked on: the speaker's physical Play/Pause and Bluetooth
+buttons don't yet forward to this software (volume buttons already work,
+since those are handled directly by the speaker's own hardware). See
+"What's still open" below.
 
 ## Architecture
 
@@ -78,53 +64,18 @@ unit is still on whatever firmware it shipped with, speaking `eco`.
               mpv (internet radio)     librespot (Spotify Connect)
 ```
 
-The Pi's role in the Actionslink protocol is exactly the role the original
+The Pi's role in the Actionslink protocol is the role the original
 Bluetooth/Actions co-processor used to play: it receives commands from the
-MCU (`set_audio_source`, `set_volume`, `set_power_state`, `play_sound_icon`,
-transport controls, ...) and must acknowledge/respond to them, and it can
-also push events/requests of its own to the MCU (`notify_system_ready`,
-`notify_power_state`, `notify_volume`, `notify_stream_state`, LED
-color/brightness queries, battery status, ...). `daemon/orchestrator.py` is
-where that's implemented, on top of `myndlink`'s protocol library.
+MCU (`set_volume`, `set_power_state`, `play_sound_icon`, transport controls,
+...) and acknowledges/responds to them, and it pushes its own events to the
+MCU (`notify_system_ready`, `notify_power_state`, `notify_volume`,
+`notify_stream_state`, ...). `daemon/orchestrator.py` is where that's
+implemented, on top of `myndlink`'s protocol library.
 
-Only one of {radio, spotify} is ever meant to be actually producing sound at
-a time: starting radio force-stops `librespot` (there's no local way to
-"pause" a remote Spotify Connect session), and Spotify becoming active (via
-its `--onevent` hook) stops radio.
-
-## Protocol notes (Actionslink)
-
-Reverse engineered from
-`reference/mynd-firmware/Projects/Mynd/external/teufel/libs/actionslink/`.
-
-**Transport** — `src/bsp/bluetooth_uart/bsp_bluetooth_uart.c` +
-`src/bsp/board_hw.h`:
-- `USART1`, **115200 baud, 8N1, no flow control**. Direct hardware UART (not
-  USB-serial) — on the MYNDberry adapter PCB this is wired straight to the
-  Pi's GPIO UART pins (`/dev/serial0`).
-
-**Framing** — `src/transport/actionslink_bt_ll.c`, HDLC-style:
-- Frame = `0x7E` + byte-stuffed(header + payload) + `0x7E`
-- Escape char `0x7D`, escaped bytes are XORed with `0x20`
-- 8-byte header: magic (`0x55`) · packet-type+value · transaction id ·
-  payload length (u16 LE) · payload CRC-8 · reserved · header CRC-8
-- CRC-8: poly `0x07`, init `0x00`, no reflection, xorout `0x00`
-- Every frame with a payload (`PROTOBUF` type) must be met with an
-  `ACK`/`NACK` frame (same transaction id) before the sender considers it
-  delivered. 2 retries, 300ms timeout per attempt.
-- Requests additionally expect a matching response message after the ACK.
-
-**Messages** — `proto/eco/message.proto` (Protocol Buffers, vendored into
-`myndlink/proto/`): bytes the MCU sends are always an `ActionsLink.FromMcu`
-message; bytes we send are always `ActionsLink.ToMcu`. See that file for the
-full message catalogue (power, audio source/volume, BT-emulation fields we
-stub out, USB HID, LED color/brightness, battery, generic app passthrough).
-
-**Hardware** — `reference/mynd-hardware/MYNDberry/` (KiCad): the MYNDberry
-adapter PCB breaks out the Pi's 40-pin header to the MYND's original
-Bluetooth-module connector, with a CH340N USB-serial chip on board as well
-(most likely for a separate debug console, not the Actionslink link itself —
-unconfirmed, verify against the physical board before relying on it).
+Only one of {radio, Spotify} is ever meant to be actually producing sound at
+a time: starting radio stops `librespot` (there's no local way to "pause" a
+remote Spotify Connect session), and Spotify becoming active (via its
+`--onevent` hook) stops radio.
 
 ## Repo layout
 
@@ -148,9 +99,10 @@ webui/
   app.py              Flask app: status/radio/volume/spotify API + onevent receiver
   templates/index.html  control page
 systemd/
-  myndless.service    systemd unit for the setup script
+  myndless.service    systemd unit installed by the setup script
 scripts/
-  setup_pi.sh          Raspberry Pi OS setup (UART, packages, venv, service)
+  setup_pi.sh          Raspberry Pi OS setup (UART, audio, packages, venv, service)
+  uart_probe.py        standalone Actionslink link diagnostic (no hardware guesswork)
   gen_proto.sh         regenerate myndlink/pb/*_pb2.py from myndlink/proto/*.proto
 tests/                unit + integration tests, all runnable without real hardware
 reference/            vendored upstream repos for protocol/hardware reference (gitignored)
@@ -158,10 +110,72 @@ reference/            vendored upstream repos for protocol/hardware reference (g
   mynd-hardware/        github.com/teufelaudio/mynd-hardware
 ```
 
-## Setting up `reference/`
+## Actionslink protocol notes
 
-`reference/` is gitignored (it's upstream Teufel repos, not ours to version)
-but the protocol/hardware notes above point into it. Recreate it with:
+Documented here for anyone else poking at this hardware. Reverse engineered
+from the open-source MCU firmware at
+`reference/mynd-firmware/Projects/Mynd/external/teufel/libs/actionslink/`
+(see "Setting up `reference/`" below).
+
+**Transport** — `USART1`, **115200 baud, 8N1, no flow control**. A direct
+hardware UART (not USB-serial) — on the MYNDberry adapter PCB it's wired
+straight to the Pi's GPIO UART pins (`/dev/serial0`).
+
+**Framing** — HDLC-style:
+- Frame = `0x7E` + byte-stuffed(header + payload) + `0x7E`
+- Escape char `0x7D`, escaped bytes XORed with `0x20`
+- 8-byte header: magic (`0x55`) · packet-type+value · transaction id ·
+  payload length (u16 LE) · payload CRC-8 · reserved · header CRC-8
+- CRC-8: poly `0x07`, init `0x00`, no reflection, xorout `0x00`
+- Every frame with a payload must be met with an `ACK`/`NACK` frame (same
+  transaction id). 2 retries, 300ms timeout per attempt. Requests
+  additionally expect a matching response message after the ACK.
+
+**Messages** — Protocol Buffers (vendored into `myndlink/proto/`). Bytes the
+MCU sends are always an `ActionsLink.FromMcu` message; bytes the Pi sends
+are always `ActionsLink.ToMcu`. Note: the `MYNDberry` branch of
+`mynd-firmware` ships a second, newer RPi-specific protocol dialect
+(`actionslink/proto/rpi/`, with a unified play/pause/next/prev action,
+host-source LED sync, even WiFi provisioning over Actionslink itself) -
+that one is presumably only spoken by MCU firmware actually flashed from
+`myndberry-update-firmware-mcu.bin`. This project speaks the older, generic
+`eco/message.proto` dialect, which is what a stock-firmware unit uses and
+is what's been verified working here.
+
+**Hardware** — the MYNDberry adapter PCB breaks out the Pi's 40-pin header
+to the MYND's original Bluetooth-module connector. It also carries a
+CH340N USB-UART chip that can reach the MCU's separate debug UART, though
+per the [MYNDberry PCB wiki page](https://github.com/teufelaudio/mynd-hardware/wiki/myndberry_pcb)
+that line isn't connected by default.
+
+## Getting this running on your own MYNDberry
+
+1. Do the physical MYNDberry install as usual (adapter PCB, Pi Zero 2 W) —
+   see the [official guide](https://github.com/teufelaudio/mynd-firmware/wiki/MYNDberry_initial_setup).
+   This project runs on plain **Raspberry Pi OS Lite** rather than moOde.
+2. Flash Raspberry Pi OS Lite, boot it, and clone this repo onto it.
+3. Run the setup script:
+   ```bash
+   bash scripts/setup_pi.sh
+   ```
+   This enables the hardware UART (for Actionslink) and I2S audio out (for
+   the MYND's amps), sets up an ALSA software-volume control (the DAC has
+   no hardware mixer of its own), installs system packages, and installs +
+   enables the `myndless` systemd service. It'll also print instructions
+   for `librespot` (needed for Spotify Connect - not packaged for Pi OS, so
+   it's installed via the [Raspotify](https://github.com/dtcooper/raspotify)
+   project's prebuilt binary).
+4. `sudo reboot`, then `sudo systemctl start myndless`, then open
+   `http://<pi-hostname-or-ip>:8080/`.
+
+Before trusting the full daemon on a new setup, `scripts/uart_probe.py` is a
+handy standalone diagnostic for the Actionslink link itself - see its
+docstring for usage.
+
+### Setting up `reference/`
+
+`reference/` is gitignored (it's upstream Teufel repos, not ours to
+version) but the protocol notes above point into it:
 
 ```bash
 mkdir -p reference && cd reference
@@ -169,14 +183,9 @@ git clone --depth 1 https://github.com/teufelaudio/mynd-firmware.git
 git clone --depth 1 https://github.com/teufelaudio/mynd-hardware.git
 cd mynd-firmware
 git submodule update --init --depth 1 Projects/Mynd/external/thirdparty/nanopb
-
-# The official RpiLink daemon (a useful reference/cross-check - see "Why not
-# moOde?") lives on the MYNDberry branch, not main:
-git fetch origin MYNDberry --depth 1
-git checkout -b MYNDberry FETCH_HEAD
 ```
 
-## Development setup
+### Development setup
 
 ```bash
 python3 -m venv .venv
@@ -185,10 +194,9 @@ pip install -r requirements-dev.txt   # adds grpcio-tools (proto codegen) + pyfl
 ```
 
 Run the tests (no hardware, no mpv/librespot/ALSA required - everything's
-mocked or run against a simulated MCU over a pty):
+mocked, or run against a simulated MCU over a pty):
 
 ```bash
-source .venv/bin/activate
 for f in tests/test_*.py; do python "$f" || break; done
 ```
 
@@ -198,7 +206,7 @@ Regenerate the protobuf bindings after touching `myndlink/proto/`:
 bash scripts/gen_proto.sh
 ```
 
-## Using `myndlink` directly
+### Using `myndlink` directly
 
 ```python
 from myndlink.client import ActionslinkClient
@@ -207,7 +215,6 @@ import system_pb2  # from myndlink/pb, already on sys.path via client.py
 client = ActionslinkClient("/dev/serial0")
 
 def handle_set_audio_source(source, seq):
-    print("MCU wants source", source.source)
     import common_pb2, error_pb2
     result = common_pb2.Result()
     result.status.code = error_pb2.Code.Success
@@ -219,121 +226,23 @@ client.notify_system_ready()
 client.notify_power_state(system_pb2.PowerState.ON)
 ```
 
-`daemon/orchestrator.py` is the fuller, real implementation of this pattern -
-start there if you're extending protocol handling.
+`daemon/orchestrator.py` is the fuller, real implementation of this pattern.
 
-## Running it (dev machine, no MYND attached)
+## What's still open
 
-You can run the whole stack without hardware to poke at the web UI - the
-Actionslink client will just fail to open `/dev/serial0` unless you point it
-at a pty (see `tests/test_orchestrator.py` for how the tests fake one up).
-For a real dry run you need at least a Pi (or any Linux box) with a serial
-port, `mpv`, and optionally `librespot` installed:
+- The speaker's physical Play/Pause and Bluetooth buttons don't yet forward
+  anything to this software - the volume buttons already work fine, since
+  the speaker's own hardware handles those directly. Getting transport
+  buttons wired up is an active work in progress; the web UI is the
+  reliable way to control playback for now.
+- Spotify Connect play/pause/skip from the speaker's own buttons: vanilla
+  `librespot` doesn't expose a local control API for that, so this would
+  need `spotifyd` or a librespot fork instead.
+- Sound icon playback (chimes for certain MCU-requested events) needs
+  `.wav` files dropped into `assets/sound_icons/` - none are bundled yet.
 
-```bash
-pip install -r requirements.txt
-export MYNDLESS_SERIAL_PORT=/dev/ttyUSB0   # or wherever
-python -m daemon.main
-```
+## Thanks
 
-Then open `http://localhost:8080/`.
-
-## First run on real hardware
-
-Confirmed against a real MYND + MYNDberry board (Pi Zero 2 W), start to
-finish: physical assembly, UART link, I2S audio path, and the full daemon +
-web UI running as a systemd service (MCU handshake, station playback,
-software volume control) all work as described below.
-
-1. Follow the [MYNDberry blog post](https://blog.teufelaudio.com/project-myndberry/)
-   (or the more detailed [official wiki guide](https://github.com/teufelaudio/mynd-firmware/wiki/MYNDberry_initial_setup))
-   for the physical mod (adapter PCB install) - that part is unchanged, and
-   works with plain **Raspberry Pi OS Lite** instead of moOde.
-2. Enable the UART and disable the serial console. `raspi-config`'s
-   `nonint` flags are inverted from what the names suggest - verified on a
-   real Pi Zero 2 W:
-   ```bash
-   sudo raspi-config nonint do_serial_hw 0   # 0 = enable (not 1)
-   sudo raspi-config nonint do_serial_cons 1 # 1 = disable (not 0)
-   ```
-3. Enable I2S audio out - the MCU owns I2C/DSP configuration of the amps
-   (TAS5825P/TAS5805M) itself, so the Pi only needs to feed raw I2S PCM.
-   The official image uses `dtoverlay=hifiberry-dac` for exactly this, and
-   it's confirmed working (audible output) on real hardware:
-   ```bash
-   CONFIG_TXT=/boot/firmware/config.txt
-   echo "dtparam=i2c_arm=on" | sudo tee -a "$CONFIG_TXT"
-   echo "dtoverlay=hifiberry-dac" | sudo tee -a "$CONFIG_TXT"
-   sudo reboot
-   ```
-   After rebooting, `aplay -l` should list `card 0: sndrpihifiberry
-   [snd_rpi_hifiberry_dac]`. The DAC has no hardware volume control -
-   `scripts/setup_pi.sh` sets up an ALSA softvol wrapper (`/etc/asound.conf`)
-   so `amixer`/`daemon/audio.py` still has a "PCM" control to drive.
-4. Before trusting the full daemon, verify the link in isolation with
-   `scripts/uart_probe.py` (see its docstring) - `--handshake` sends the
-   boot sequence and `--listen=N` then logs live MCU traffic (button
-   presses, battery events, ...) for N seconds. The MCU stays silent until
-   it sees the handshake, so plain passive sniffing sees nothing even on a
-   working link.
-5. Clone this repo onto the Pi and run `bash scripts/setup_pi.sh` - it
-   redoes steps 2-3 (idempotently, safe to re-run) plus installs system
-   packages and sets up the systemd service. Install `librespot` first (see
-   the script's output for options) if you want Spotify Connect from boot.
-6. `sudo systemctl start myndless`, then watch `journalctl -u myndless -f`
-   while pressing physical buttons/knobs on the speaker to confirm
-   Actionslink requests are arriving and being answered. Open
-   `http://<pi-hostname-or-ip>:8080/` for the web UI - picking a station
-   there and adjusting the volume slider both take effect immediately on a
-   confirmed-working install.
-
-### Gotchas hit during real bring-up (already fixed, worth knowing about)
-
-- If `journalctl -u myndless` shows the service restarting every few
-  seconds with a traceback, and `librespot` isn't installed: that's
-  already handled (`daemon/spotify.py` logs a warning and skips Spotify
-  Connect instead of crashing) as long as you're on a build that includes
-  that fix - `git pull` and restart if you hit it.
-- If volume control silently does nothing (`{"percent": 0}` from
-  `/api/volume`, or a "no ALSA mixer control found" warning in the logs)
-  right after a crash-loop like the one above: it was a transient
-  side-effect of the rapid restart cycle in this project's own testing,
-  not a real config problem - it resolved on its own once the crash loop
-  stopped. If it persists on a clean boot, compare `sudo -u myndless
-  amixer -c 0 scontrols` (should print `Simple mixer control 'PCM',0`)
-  against what the service sees in its logs (now logs amixer's exit
-  code/stdout/stderr on failure - see `daemon/audio.py`).
-
-Still open:
-- Spotify Connect play/pause/skip from the physical remote/buttons: vanilla
-  `librespot` has no local control API for that (see `daemon/spotify.py`),
-  only phone-initiated playback has been exercised.
-- **Physical Play/Pause/Bluetooth buttons don't forward anything over
-  Actionslink, and it's not fully understood why.** `daemon/audio.py`'s
-  volume buttons work (handled entirely in MCU hardware, no Actionslink
-  round trip - they just also trigger a `play_sound_icon` request as a UI
-  click sound). But Play/Pause and the Bluetooth button produce *zero*
-  Actionslink traffic, confirmed with `scripts/uart_probe.py --listen`.
-  Reading the real firmware (`reference/mynd-firmware`, `task_bluetooth.cpp`)
-  shows its button handlers only call `actionslink_bt_play_pause()` etc.
-  once its own `audio_source` tracking is non-empty, which is set purely by
-  a `notify_audio_source` event from the peer - so `Orchestrator.start()`
-  now sends `notify_audio_source(A2DP1)` once at boot (a real, harmless fix,
-  kept regardless). It did not fix the buttons on the real unit, even after
-  a full power cycle so the MCU's boot-time `while
-  (!audio_source.has_value())` wait (same file) gets a fair shot at seeing
-  it. So either this physical unit's actual flashed firmware doesn't match
-  what's in the `main` branch source, or there's a precondition this
-  investigation didn't find from static reading alone. Next step, if
-  revisited: read the MCU's own debug UART (a separate physical line from
-  the Actionslink one - see `reference/mynd-hardware` wiki's
-  `myndberry_pcb.md`: the MYNDberry PCB's onboard CH340N USB-UART chip can
-  be wired to it, but "is not connected to anything by default", so this
-  needs manual jumper wiring) to see the firmware's own real-time logs
-  (`log_info("Play/Pause")` etc.) instead of guessing from source alone.
-  For now, the web UI is the reliable way to control playback/volume.
-- Whether `set_audio_source`/analog-source handling needs real behavior
-  (right now it's acked as a no-op - see the docstring in
-  `daemon/orchestrator.py`).
-- Sound icon playback (`play_sound_icon`/`stop_sound_icon`) needs actual
-  `.wav` files dropped into `assets/sound_icons/` - none are bundled.
+To the Teufel/MYNDberry team for open-sourcing the firmware, hardware
+design, and protocol that made a project like this possible in the first
+place.
