@@ -113,6 +113,11 @@ def handshake(port: str, listen_seconds: float = 0.0) -> None:
         client.notify_power_state(system_pb2.PowerState.ON)
         print("notify_power_state(ON): acked")
 
+        import audio_pb2
+
+        client.notify_audio_source(audio_pb2.AudioSourceType.A2DP1)
+        print("notify_audio_source(A2DP1): acked")
+
         version = client.get_mcu_firmware_version(timeout=1.0)
         print(f"MCU firmware version: {version.major}.{version.minor}.{version.patch} ({version.build})")
 
