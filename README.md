@@ -50,7 +50,16 @@ with it - see `reference/mynd-firmware` (branch `MYNDberry`) after running
 `git fetch origin MYNDberry && git checkout MYNDberry` in that clone.
 
 The protocol itself - **Actionslink** - is unambiguously open source either
-way, as part of the same repo.
+way, as part of the same repo. One wrinkle worth knowing about: the
+`MYNDberry` branch's MCU firmware also ships a *different*, RPi-specific
+protocol dialect (`Projects/Mynd/external/teufel/libs/actionslink/proto/rpi/`
+- `PlaybackAction`, `CycleSource`, host-source LED sync, even WiFi
+provisioning over Actionslink itself), separate from the generic
+`eco/message.proto` dialect this project implements and has verified
+against real hardware. That RPi dialect is presumably only spoken by MCU
+firmware actually built from the `MYNDberry` branch (flashed via the
+`myndberry-update-firmware-mcu.bin` release asset) - this project's test
+unit is still on whatever firmware it shipped with, speaking `eco`.
 
 ## Architecture
 
@@ -299,11 +308,32 @@ Still open:
 - Spotify Connect play/pause/skip from the physical remote/buttons: vanilla
   `librespot` has no local control API for that (see `daemon/spotify.py`),
   only phone-initiated playback has been exercised.
+- **Physical Play/Pause/Bluetooth buttons don't forward anything over
+  Actionslink, and it's not fully understood why.** `daemon/audio.py`'s
+  volume buttons work (handled entirely in MCU hardware, no Actionslink
+  round trip - they just also trigger a `play_sound_icon` request as a UI
+  click sound). But Play/Pause and the Bluetooth button produce *zero*
+  Actionslink traffic, confirmed with `scripts/uart_probe.py --listen`.
+  Reading the real firmware (`reference/mynd-firmware`, `task_bluetooth.cpp`)
+  shows its button handlers only call `actionslink_bt_play_pause()` etc.
+  once its own `audio_source` tracking is non-empty, which is set purely by
+  a `notify_audio_source` event from the peer - so `Orchestrator.start()`
+  now sends `notify_audio_source(A2DP1)` once at boot (a real, harmless fix,
+  kept regardless). It did not fix the buttons on the real unit, even after
+  a full power cycle so the MCU's boot-time `while
+  (!audio_source.has_value())` wait (same file) gets a fair shot at seeing
+  it. So either this physical unit's actual flashed firmware doesn't match
+  what's in the `main` branch source, or there's a precondition this
+  investigation didn't find from static reading alone. Next step, if
+  revisited: read the MCU's own debug UART (a separate physical line from
+  the Actionslink one - see `reference/mynd-hardware` wiki's
+  `myndberry_pcb.md`: the MYNDberry PCB's onboard CH340N USB-UART chip can
+  be wired to it, but "is not connected to anything by default", so this
+  needs manual jumper wiring) to see the firmware's own real-time logs
+  (`log_info("Play/Pause")` etc.) instead of guessing from source alone.
+  For now, the web UI is the reliable way to control playback/volume.
 - Whether `set_audio_source`/analog-source handling needs real behavior
   (right now it's acked as a no-op - see the docstring in
   `daemon/orchestrator.py`).
 - Sound icon playback (`play_sound_icon`/`stop_sound_icon`) needs actual
   `.wav` files dropped into `assets/sound_icons/` - none are bundled.
-- Physical button routing (play/pause/next/prev via `send_avrcp_action`/
-  `send_usb_hid_action`) is implemented but not yet exercised on real
-  hardware.
