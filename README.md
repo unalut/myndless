@@ -248,3 +248,7 @@ client.notify_power_state(system_pb2.PowerState.ON)
 To the Teufel/MYNDberry team for open-sourcing the firmware, hardware
 design, and protocol that made a project like this possible in the first
 place.
+
+## License
+
+[MIT](LICENSE)
