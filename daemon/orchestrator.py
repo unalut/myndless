@@ -11,10 +11,17 @@ Design choices worth calling out:
     Starting radio force-stops librespot (so a phone can't keep streaming
     into the same ALSA device); Spotify becoming active (via its onevent
     hook) stops radio. See `_set_active_source`.
-  - `set_audio_source` (A2DP1/A2DP2/USB/ANALOG) is vestigial here - it made
-    sense when the peer was a real multi-source BT chip. We ack it but it
-    doesn't change anything; our own source switching goes through
-    start_radio()/switch_to_spotify() instead, driven by the web UI.
+  - The MCU *requesting* `set_audio_source` (A2DP1/A2DP2/USB/ANALOG) is
+    vestigial here - it made sense when the peer was a real multi-source BT
+    chip. We ack it but it doesn't change anything; our own source
+    switching goes through start_radio()/switch_to_spotify() instead,
+    driven by the web UI.
+    The *other* direction matters a lot, though: we send our own
+    `notify_audio_source` event once at startup (see `start()`). Confirmed
+    against the real MCU firmware - it only forwards Play/Pause/Next/Prev
+    button presses to us at all once its internal audio-source tracking is
+    non-empty (A2DP1/A2DP2/USB); without that event the buttons are a
+    silent no-op on the MCU side no matter what our own code does.
   - Bluetooth-management requests (pairing, paired device list, RSSI, ...)
     are stubbed out with harmless static/empty responses: we don't
     implement a real Bluetooth stack, but the MCU must never be left
@@ -88,6 +95,17 @@ class Orchestrator:
         self.client.notify_system_ready()
         self.spotify.start()
         self.client.notify_power_state(system_pb2.PowerState.ON)
+        # Confirmed against the real MCU firmware (task_bluetooth.cpp): it
+        # only forwards Play/Pause/Next/Prev button presses to us
+        # (send_avrcp_action / send_usb_hid_action) once its own internal
+        # "audio_source" tracking is A2DP1/A2DP2/USB - which is set purely
+        # by this notify_audio_source event, never sent before. Without it
+        # every transport button press is a silent no-op on the MCU side,
+        # regardless of anything our own code does. A2DP1 is the closest
+        # conceptual match for "the Pi, acting as the wireless slot" and we
+        # handle both send_avrcp_action and send_usb_hid_action identically
+        # anyway, so which exact source the MCU decides to use doesn't matter.
+        self.client.notify_audio_source(audio_pb2.AudioSourceType.A2DP1)
         log.info("orchestrator ready")
 
     def stop(self) -> None:

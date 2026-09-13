@@ -235,6 +235,27 @@ def test_startup_sends_system_ready_and_starts_spotify():
         mcu.close()
 
 
+def test_startup_notifies_audio_source_so_mcu_forwards_transport_buttons():
+    import audio_pb2
+
+    orch, mcu, audio, radio, spotify = make_orchestrator()
+    orch.start()
+    try:
+        def got_audio_source_a2dp1(m):
+            for d in m.received:
+                if d.WhichOneof("Payload") == "event" and d.event.WhichOneof("Event") == "notify_audio_source":
+                    return d.event.notify_audio_source.source == audio_pb2.AudioSourceType.A2DP1
+            return False
+
+        assert mcu.pump_until(got_audio_source_a2dp1), (
+            "orchestrator never told the MCU it's an active source - "
+            "without this, real firmware never forwards Play/Pause/Next/Prev button presses"
+        )
+    finally:
+        orch.stop()
+        mcu.close()
+
+
 def test_mcu_get_this_device_name_is_answered():
     orch, mcu, *_ = make_orchestrator()
     orch.start()
