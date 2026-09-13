@@ -47,6 +47,8 @@ buttons don't yet forward to this software (volume buttons already work,
 since those are handled directly by the speaker's own hardware). See
 "What's still open" below.
 
+<img src="docs/screenshot.png" alt="myndless web UI" width="360">
+
 ## Architecture
 
 ```
