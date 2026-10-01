@@ -51,20 +51,7 @@ since those are handled directly by the speaker's own hardware). See
 
 ## Architecture
 
-```
-┌──────────────────────────┐        UART (115200 8N1)         ┌────────────────────────────┐
-│   MYND main MCU           │◄────────────────────────────────►│  Raspberry Pi Zero 2 W      │
-│   (STM32, mynd-firmware)  │      Actionslink protocol         │  (this project)            │
-│                           │   over what used to be the        │                            │
-│   owns: amp, battery,     │   Bluetooth module's UART pins    │  myndlink/ - protocol lib   │
-│   buttons, LEDs, power    │                                   │  daemon/   - orchestrator + │
-└──────────────────────────┘                                   │             audio backends  │
-                                                                 │  webui/    - Flask control  │
-        ALSA (shared output) ◄───────────────┬────────────────►│             UI + API        │
-                     ▲                        │                 └────────────────────────────┘
-                     │                        │
-              mpv (internet radio)     librespot (Spotify Connect)
-```
+<img src="docs/architecture.png" alt="myndless Architecture">
 
 The Pi's role in the Actionslink protocol is the role the original
 Bluetooth/Actions co-processor used to play: it receives commands from the
