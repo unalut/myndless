@@ -51,7 +51,7 @@ since those are handled directly by the speaker's own hardware). See
 
 ## Architecture
 
-<img src="docs/architecture.png" alt="myndless Architecture">
+<img src="docs/architecture-hardware-integration.png" alt="myndless Architecture & Hardware Integration">
 
 The Pi's role in the Actionslink protocol is the role the original
 Bluetooth/Actions co-processor used to play: it receives commands from the
