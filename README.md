@@ -5,7 +5,7 @@
 A custom Raspberry Pi music hub for a [MYNDberry](https://blog.teufelaudio.com/project-myndberry/)-modified
 Teufel MYND speaker — internet radio and Spotify Connect, controlled from a
 web UI, talking to the speaker's MCU over its own open-source **Actionslink**
-protocol.
+protocol. 
 
 ## Why this exists
 
