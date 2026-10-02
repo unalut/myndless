@@ -24,7 +24,7 @@ the speaker fully wired up yet, and that's something I'm actively still
 poking at. But being able to take an open-source device apart, actually
 understand it, and rebuild the software around it to fit exactly how I want
 to use it has been one of the most fun side projects I've done in a while.
-Big thanks to the Teufel team for making that possible.
+Big thanks to the Teufel team for making that possible for everybody.
 
 ## What it does
 
