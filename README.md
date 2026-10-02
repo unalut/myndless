@@ -129,7 +129,7 @@ host-source LED sync, even WiFi provisioning over Actionslink itself) -
 that one is presumably only spoken by MCU firmware actually flashed from
 `myndberry-update-firmware-mcu.bin`. This project speaks the older, generic
 `eco/message.proto` dialect, which is what a stock-firmware unit uses and
-is what's been verified working here.
+is what's been verified working here. 
 
 **Hardware** — the MYNDberry adapter PCB breaks out the Pi's 40-pin header
 to the MYND's original Bluetooth-module connector. It also carries a
